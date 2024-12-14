@@ -28,3 +28,44 @@ void testInvalidateToken_Success() {
 }
 
 @Query(value = """ SELECT t.*, -- Select all columns from Transaction table o.ORDER_AMOUNT, o.CUSTOMER_ID, o.CURRENCY_CODE FROM Transaction t LEFT JOIN Orders o ON t.ORDER_REF_NUM = o.ORDER_REF_NUMBER WHERE t.ATRN_NUM = :atrnNum AND (:orderRefNum IS NULL OR t.ORDER_REF_NUM = :orderRefNum) AND (:sbiOrderRefNum IS NULL OR t.SBI_ORDER_REF_NUM = :sbiOrderRefNum) AND (:orderAmount IS NULL OR o.ORDER_AMOUNT = :orderAmount) """, nativeQuery = true) List<Object[]> findTransactionWithOrderDetails( @Param("atrnNum") String atrnNum, @Param("orderRefNum") String orderRefNum, @Param("sbiOrderRefNum") String sbiOrderRefNum, @Param("orderAmount") BigDecimal orderAmount );
+
+
+
+@Repository
+public interface TransactionOrderRepository extends JpaRepository<Transaction, Long> {
+
+    @Query(value = """
+        SELECT t, o
+        FROM Transaction t 
+        LEFT JOIN Orders o 
+        ON t.orderRefNum = o.orderRefNumber
+        WHERE t.atrnNum = :atrnNum 
+          AND (:orderRefNum IS NULL OR t.orderRefNum = :orderRefNum) 
+          AND (:sbiOrderRefNum IS NULL OR t.sbiOrderRefNum = :sbiOrderRefNum) 
+          AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
+        """)
+    List<Object[]> fetchTransactionAndOrderData(
+            @Param("atrnNum") String atrnNum,
+            @Param("orderRefNum") String orderRefNum,
+            @Param("sbiOrderRefNum") String sbiOrderRefNum,
+            @Param("orderAmount") BigDecimal orderAmount);
+}
+
+
+
+        @Query(value = """
+    SELECT t, o
+    FROM Transaction t 
+    INNER JOIN Orders o 
+    ON t.orderRefNum = o.orderRefNumber
+    WHERE t.atrnNum = :atrnNum 
+      AND (:orderRefNum IS NULL OR t.orderRefNum = :orderRefNum) 
+      AND (:sbiOrderRefNum IS NULL OR t.sbiOrderRefNum = :sbiOrderRefNum) 
+      AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
+    """)
+List<Object[]> fetchTransactionAndOrderData(
+        @Param("atrnNum") String atrnNum,
+        @Param("orderRefNum") String orderRefNum,
+        @Param("sbiOrderRefNum") String sbiOrderRefNum,
+        @Param("orderAmount") BigDecimal orderAmount);
+
