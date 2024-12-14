@@ -1,0 +1,67 @@
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class TransactionService {
+
+    private final YourRepository yourRepository;
+    private final ObjectMapper objectMapper;
+
+    public TransactionService(YourRepository yourRepository, ObjectMapper objectMapper) {
+        this.yourRepository = yourRepository;
+        this.objectMapper = objectMapper;
+    }
+
+    public TransactionOrderResponse getTransactionOrderData(String atrnNum, String orderRefNum, String sbiOrderRefNum, BigDecimal orderAmount) {
+        // Fetch data from the repository
+        List<Object[]> results = yourRepository.fetchTransactionAndOrderData(atrnNum, orderRefNum, sbiOrderRefNum, orderAmount);
+
+        if (results == null || results.isEmpty()) {
+            return null; // Handle no data scenario
+        }
+
+        // Prepare DTOs
+        OrderDto order = null;
+        List<TransactionDto> transactions = new ArrayList<>();
+
+        for (Object[] row : results) {
+            if (order == null) {
+                // Map Order data (assuming specific indices)
+                order = mapOrder(row);
+            }
+            // Map Transaction data
+            TransactionDto transaction = mapTransaction(row);
+            transactions.add(transaction);
+        }
+
+        // Combine into response
+        TransactionOrderResponse response = new TransactionOrderResponse();
+        response.setOrder(order);
+        response.setTransactions(transactions);
+
+        return response;
+    }
+
+    private OrderDto mapOrder(Object[] row) {
+        OrderDto order = new OrderDto();
+        order.setId((Long) row[4]); // Assuming order ID is at index 4
+        order.setOrderRefNumber((String) row[5]); // Assuming orderRefNumber is at index 5
+        order.setOrderAmount((BigDecimal) row[7]); // Assuming orderAmount is at index 7
+        order.setPaymentMode((String) row[8]); // Assuming paymentMode is at index 8
+        return order;
+    }
+
+    private TransactionDto mapTransaction(Object[] row) {
+        TransactionDto transaction = new TransactionDto();
+        transaction.setId((Long) row[0]); // Assuming transaction ID is at index 0
+        transaction.setMerchantId((String) row[1]); // Assuming merchantId is at index 1
+        transaction.setOrderRefNum((String) row[2]); // Assuming orderRefNum is at index 2
+        transaction.setSbiOrderRefNum((String) row[3]); // Assuming sbiOrderRefNum is at index 3
+        transaction.setDebitAmt((BigDecimal) row[6]); // Assuming debitAmt is at index 6
+        return transaction;
+    }
+}
