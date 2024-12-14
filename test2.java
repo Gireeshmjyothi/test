@@ -103,3 +103,19 @@ List<Object[]> fetchTransactionAndOrderData(
         @Param("orderRefNum") String orderRefNum,
         @Param("sbiOrderRefNum") String sbiOrderRefNum,
         @Param("orderAmount") BigDecimal orderAmount);  
+
+            @Query(value = """
+    SELECT t.*, o.*
+    FROM transaction t 
+    LEFT JOIN orders o 
+    ON t.order_ref_num = o.order_ref_number
+    WHERE t.atrn_num IN :atrnNums
+    AND (:orderRefNum IS NULL OR t.order_ref_num = :orderRefNum)
+    AND (:sbiOrderRefNum IS NULL OR t.sbi_order_ref_num = :sbiOrderRefNum)
+    AND (:orderAmount IS NULL OR o.order_amount = :orderAmount)
+    """, nativeQuery = true)
+List<Object[]> fetchTransactionAndOrderData(
+        @Param("atrnNums") List<String> atrnNums,
+        @Param("orderRefNum") String orderRefNum,
+        @Param("sbiOrderRefNum") String sbiOrderRefNum,
+        @Param("orderAmount") BigDecimal orderAmount);
