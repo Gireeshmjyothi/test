@@ -13,3 +13,25 @@
             @Param("orderRefNumber") String orderRefNumber,
             @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
             @Param("orderAmount") BigDecimal orderAmount);
+
+
+private PaymentPushStatusVerificationResponse mapListOfObjectToPaymentPushStatusVerificationResponse(List<Object[]> transactionResponse) {
+        if(transactionResponse.isEmpty()){
+            throw new TransactionException(ErrorConstants.NOT_FOUND_ERROR_CODE, MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Transaction"));
+        }
+        Object[] transactionsRaw = transactionResponse.getFirst();
+        List<PaymentInfoDto> transactions = new ArrayList<>();
+        OrderDetailDto order = null;
+            PaymentInfoDto transaction = objectMapper.convertValue(transactionsRaw[0], PaymentInfoDto.class);
+            transactions.add(transaction);
+            
+        Object[] orderRaw = transactionResponse.get(1);
+        
+        if (orderRaw != null) {
+            order = objectMapper.convertValue(orderRaw[1], OrderDetailDto.class);
+        }
+        return PaymentPushStatusVerificationResponse.builder()
+                .paymentInfo(transactions)
+                .orderInfo(order)
+                .build();
+    }
