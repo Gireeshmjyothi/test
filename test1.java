@@ -36,7 +36,24 @@ private PaymentPushStatusVerificationResponse mapListOfObjectToPaymentPushStatus
                 .build();
     }
 
- @Query("""
+ @Query(value = """
+                SELECT t, o
+                FROM Transaction t
+                INNER JOIN Order o
+                ON t.orderRefNumber = o.orderRefNumber
+                WHERE t.atrnNumber = :atrnNumber
+                AND (:orderRefNumber IS NULL OR t.orderRefNumber = :orderRefNumber)
+                AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
+                AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
+            """)
+    Optional<List<Object[]>> fetchTransactionAndOrderData(
+            @Param("atrnNumber") String atrnNumber,
+            @Param("orderRefNumber") String orderRefNumber,
+            @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
+            @Param("orderAmount") BigDecimal orderAmount);
+
+
+    @Query("""
             SELECT t, o
             FROM Transaction t
             INNER JOIN Order o
@@ -47,3 +64,8 @@ private PaymentPushStatusVerificationResponse mapListOfObjectToPaymentPushStatus
             AND (:atrnNumber IS NULL OR t.atrnNumber = :atrnNumber)
             AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
             """)
+    Optional<List<Object[]>> findTransactionAndOrderDetails(@Param("orderRefNumber") String orderRefNumber,
+                                                            @Param("merchantId") String merchantId,
+                                                            @Param("orderAmount") BigDecimal orderAmount,
+                                                            @Param("atrnNumber") String atrnNumber,
+                                                            @Param("sbiOrderRefNumber") String sbiOrderRefNumber);
