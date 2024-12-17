@@ -35,3 +35,15 @@ private PaymentPushStatusVerificationResponse mapListOfObjectToPaymentPushStatus
                 .orderInfo(order)
                 .build();
     }
+
+ @Query("""
+            SELECT t, o
+            FROM Transaction t
+            INNER JOIN Order o
+            ON t.orderRefNumber = o.orderRefNumber
+            WHERE t.orderRefNumber = :orderRefNumber
+            AND t.merchantId = :merchantId
+            AND o.orderAmount = :orderAmount
+            AND (:atrnNumber IS NULL OR t.atrnNumber = :atrnNumber)
+            AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
+            """)
