@@ -7,3 +7,11 @@
         tokenDao.saveToken(tokenDto);
         return TransactionResponse.<String>builder().data(List.of("Token invalidated successfully")).status(1).build();
     }
+
+public void validatePaymentPushStatusVerificationRequest(PaymentVerificationRequest paymentVerificationRequest, String mId) {
+        errorDtoList.clear();
+        logger.info("Validation ARTN Number.");
+        checkMandatoryField(paymentVerificationRequest.getAtrnNumber(), "ATRN number");
+        checkMandatoryField(mId, "Merchant Id");
+        throwIfErrors();
+    }
