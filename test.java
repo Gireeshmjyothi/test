@@ -15,3 +15,39 @@ public void validatePaymentPushStatusVerificationRequest(PaymentVerificationRequ
         checkMandatoryField(mId, "Merchant Id");
         throwIfErrors();
     }
+
+
+@AllArgsConstructor
+@NoArgsConstructor
+@Data
+@Builder
+public class MerchantPricingRequest {
+
+//    @JsonProperty("mId")
+    private String mId;
+
+    private BigDecimal transactionAmount;
+
+    private String payModeCode;
+
+    private String gtwMapsId;
+
+    private String payProcType;
+
+    private String atrn;
+
+    private BigDecimal postAmount;
+
+
+}
+
+
+{
+    "mId": "1000642",
+    "payModeCode": "NB",
+    "gtwMapsId": "101",
+    "payProcType": "ONUS",
+    "transactionAmount": "50",
+    "atrn": "235gsfgsog",
+    "postAmount": "50"
+}
