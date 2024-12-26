@@ -17,37 +17,123 @@ public void validatePaymentPushStatusVerificationRequest(PaymentVerificationRequ
     }
 
 
-@AllArgsConstructor
-@NoArgsConstructor
 @Data
-@Builder
-public class MerchantPricingRequest {
+@Embeddable
+public class MerchantPricingRequestDto {
 
-//    @JsonProperty("mId")
+    @Column(name = "MERCHANTID")
     private String mId;
 
-    private BigDecimal transactionAmount;
-
+    @Column(name = "PAYMODECODE")
     private String payModeCode;
 
+    @Column(name = "AGGGTWMAPID")
     private String gtwMapsId;
 
+    @Column(name = "PAYPROCTYPE")
     private String payProcType;
 
-    private String atrn;
-
-    private BigDecimal postAmount;
-
+    @Transient
+    private BigDecimal transactionAmount;
 
 }
 
+@Data
+@Entity
+@Table(name = "PRICING_VIEW")
+public class MerchantPricing {
 
-{
-    "mId": "1000642",
-    "payModeCode": "NB",
-    "gtwMapsId": "101",
-    "payProcType": "ONUS",
-    "transactionAmount": "50",
-    "atrn": "235gsfgsog",
-    "postAmount": "50"
+    @EmbeddedId
+    private MerchantPricingRequestDto pricingRequestDto;
+
+    @Column(name = "INSTRUCTIONTYPE")
+    private String instructionType;
+
+    @Column(name = "MERCHANTFEE")
+    private BigDecimal merchantFee;
+
+    @Column(name = "SLABFROM")
+    private BigDecimal slabFrom;
+
+    @Column(name = "SLABTO")
+    private BigDecimal slabTo;
+
+    @Column(name = "MERCHANTFEEAPPLICABLE")
+    private Character merchantFeeApplicable;
+
+    @Column(name = "MERCHANTFEETYPE")
+    private Character merchantFeeType;
+
+    @Column(name = "OTHERFEEAPPLICABLE")
+    private Character otherFeeApplicable;
+
+    @Column(name = "OTHERFEETYPE")
+    private Character otherFeeType;
+
+    @Column(name = "OTHERFEE")
+    private BigDecimal otherFee;
+
+    @Column(name = "GTWFEEAPPLICABLE")
+    private Character gtwFeeApplicable;
+
+    @Column(name = "GTWFEETYPE")
+    private Character gtwFeeType;
+
+    @Column(name = "GTWFEE")
+    private BigDecimal gtwFee;
+
+    @Column(name = "AGGSERVICEFEEAPPLICABLE")
+    private Character aggServiceFeeApplicable;
+
+    @Column(name = "AGGSERVICEFEETYPE")
+    private Character aggServiceFeeType;
+
+    @Column(name = "AGGSERVICEFEE")
+    private BigDecimal aggServiceFee;
+
+    @Column(name = "FEEPROCESSFLAG")
+    private Character feeProcessingFlag;
+
+    @Column(name = "SERVICETAX")
+    private BigDecimal serviceTax;
+
+    @Column(name = "SERVICETAXTYPE")
+    private String serviceTaxType;
+
+    @Column(name = "SERVICETAXID")
+    private String serviceTaxId;
+
+    @Column(name = "TXNAPPLICABLE")
+    private Character txnApplicable;
+
+    @Column(name = "TRANSACTIONTYPE")
+    private String transactionType;
+
+    @Column(name = "BEARABLECOMPONENT")
+    private String bearableComponent;
+
+    @Column(name = "BEARABLEENTITY")
+    private Character bearableEntity;
+
+    @Column(name = "BEARABLEAMOUNTCUTOFF")
+    private BigDecimal bearableAmountCutoff;
+
+    @Column(name = "BEARABLEFLATRATE")
+    private BigDecimal bearableFlatRate;
+
+    @Column(name = "BEARABLELIMIT")
+    private String bearableLimit;
+
+    @Column(name = "BEARABLEPERCENTAGERATE")
+    private BigDecimal bearablePercentageRate;
+
+    @Column(name = "BEARABLETYPE")
+    private Character bearableType;
+
+    @Column(name = "TOTALFEERATE")
+    private BigDecimal totalFeeRate;
+
+    @Column(name = "PROCESSFLAG")
+    private Character processFlag;
+
 }
