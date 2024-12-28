@@ -1,5 +1,5 @@
-
-if (validateAndMatch(bearableComponent, ApplicationConstants.BEARABLE_COMPONENT_AMOUNT)) {
+//txnFeeProcessFlag = Hybrid & bearableComponent = Amount
+        if (validateAndMatch(bearableComponent, ApplicationConstants.BEARABLE_COMPONENT_AMOUNT)) {
 
                 //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = P
                 if (validateAndMatch(merchantFeeType, ApplicationConstants.MERCHANT_FEE_TYPE_PERCENTAGE)) {
