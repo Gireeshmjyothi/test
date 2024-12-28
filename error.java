@@ -1,86 +1,64 @@
-//txnFeeProcessFlag = Hybrid & bearableComponent = Amount
-        if (validateAndMatch(bearableComponent, ApplicationConstants.BEARABLE_COMPONENT_AMOUNT)) {
+// Method to calculate total fees and service tax
+private void calculateTotalFeeAndServiceTax(BigDecimal merchPostedAmt, BigDecimal totalBearableFeeRate, BigDecimal serviceTax) {
+    totalAbsFee = multiplyAndPercent(merchPostedAmt, totalBearableFeeRate);
+    totalBearableFee = totalAbsFee;
+    totalBearableFeeServiceTax = multiplyAndPercent(totalBearableFee, serviceTax);
+    txCal = multiplyAndPercent(serviceTax, totalAbsFee);
+}
 
-                //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = P
-                if (validateAndMatch(merchantFeeType, ApplicationConstants.MERCHANT_FEE_TYPE_PERCENTAGE)) {
+// Method to handle both merchant and customer bearable entities
+private void handleBearableEntity(BigDecimal totalAbsFee, BigDecimal txCal, BigDecimal totalBearableFeeServiceTax, String bearableEntity) {
+    if (validateAndMatch(bearableEntity, ApplicationConstants.BEARABLE_ENTITY_MERCHANT)) {
+        merchantBearableAmt = totalBearableFee;
+        merchantBearableServiceTax = totalBearableFeeServiceTax;
+        customerBearableAmt = subtract(totalAbsFee, merchantBearableAmt);
+        customerBearableServiceTax = subtract(txCal, totalBearableFeeServiceTax);
+    } else if (validateAndMatch(bearableEntity, ApplicationConstants.BEARABLE_ENTITY_CUSTOMER)) {
+        customerBearableAmt = totalBearableFee;
+        customerBearableServiceTax = totalBearableFeeServiceTax;
+        merchantBearableAmt = subtract(totalAbsFee, customerBearableAmt);
+        merchantBearableServiceTax = subtract(txCal, totalBearableFeeServiceTax);
+    }
+}
 
-                    if (bearableCutOffAmt.compareTo(merchPostedAmt) > 0) {
+// Method to handle fee calculation for flat fee type
+private void handleFlatFee(BigDecimal totalBearableFeeRate, BigDecimal serviceTax) {
+    if (totalBearableFeeRate.compareTo(bearableFlatFee) > 0) {
+        totalAbsFee = totalBearableFeeRate;
+        totalBearableFee = bearableFlatFee;
+    } else {
+        totalAbsFee = totalBearableFeeRate;
+        totalBearableFee = totalAbsFee;
+    }
+    txCal = multiplyAndPercent(serviceTax, totalAbsFee);
+    totalBearableFeeServiceTax = multiplyAndPercent(totalBearableFee, serviceTax);
+}
 
-                        bearableCutOffAmt = merchPostedAmt;
-                    }
+if (validateAndMatch(bearableComponent, ApplicationConstants.BEARABLE_COMPONENT_AMOUNT)) {
 
-                    totalAbsFee = multiplyAndPercent(merchPostedAmt, totalBearableFeeRate);
+    // txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = P
+    if (validateAndMatch(merchantFeeType, ApplicationConstants.MERCHANT_FEE_TYPE_PERCENTAGE)) {
 
-                    totalBearableFee = totalAbsFee;
+        if (bearableCutOffAmt.compareTo(merchPostedAmt) > 0) {
+            bearableCutOffAmt = merchPostedAmt;
+        }
 
-                    totalBearableFeeServiceTax = multiplyAndPercent(totalBearableFee, serviceTax);
+        // Calculate total fee and service tax for percentage type
+        calculateTotalFeeAndServiceTax(merchPostedAmt, totalBearableFeeRate, serviceTax);
 
-                    txCal = multiplyAndPercent(serviceTax, totalAbsFee);
+        // Handle merchant and customer bearable entities
+        handleBearableEntity(totalAbsFee, txCal, totalBearableFeeServiceTax, bearableEntity);
+    }
 
-                    //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = P & bearableEntity = M
-                    if (validateAndMatch(bearableEntity, ApplicationConstants.BEARABLE_ENTITY_MERCHANT)) {
+    // txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = F
+    if (validateAndMatch(merchantFeeType, ApplicationConstants.MERCHANT_FEE_TYPE_FLAT) && validateAndMatch(bearableType, ApplicationConstants.BEARABLE_TYPE_FLAT)) {
 
-                        merchantBearableAmt = totalBearableFee;
-                        merchantBearableServiceTax = totalBearableFeeServiceTax;
-                        customerBearableAmt = subtract(totalAbsFee, merchantBearableAmt);
-                        customerBearableServiceTax = subtract(txCal, totalBearableFeeServiceTax);
+        // Handle flat fee calculations
+        handleFlatFee(totalBearableFeeRate, serviceTax);
 
-                    }
+        // Handle merchant and customer bearable entities
+        handleBearableEntity(totalAbsFee, txCal, totalBearableFeeServiceTax, bearableEntity);
+    }
 
-                    //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = P & bearableEntity = C
-                    if (validateAndMatch(bearableEntity, ApplicationConstants.BEARABLE_ENTITY_CUSTOMER)) {
-
-                        customerBearableAmt = totalBearableFee;
-                        customerBearableServiceTax = totalBearableFeeServiceTax;
-                        merchantBearableAmt = subtract(totalAbsFee, customerBearableAmt);
-                        merchantBearableServiceTax = subtract(txCal, totalBearableFeeServiceTax);
-
-                    }
-
-
-                }
-
-                //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = F
-                if (validateAndMatch(merchantFeeType, ApplicationConstants.MERCHANT_FEE_TYPE_FLAT) && validateAndMatch(bearableType, ApplicationConstants.BEARABLE_TYPE_FLAT)) {
-
-                    if (totalBearableFeeRate.compareTo(bearableFlatFee) > 0) {
-
-                        totalAbsFee = totalBearableFeeRate;
-                        txCal = multiplyAndPercent(serviceTax, totalAbsFee);
-                        totalBearableFee = bearableFlatFee;
-                        totalBearableFeeServiceTax = multiplyAndPercent(totalBearableFee, serviceTax);
-
-                    } else {
-
-                        totalAbsFee = totalBearableFeeRate;
-                        txCal = multiplyAndPercent(serviceTax, totalAbsFee);
-                        totalBearableFee = totalAbsFee;
-                        totalBearableFeeServiceTax = txCal;
-                    }
-
-                    //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = F & bearableEntity = M
-                    if (validateAndMatch(bearableEntity, ApplicationConstants.BEARABLE_ENTITY_MERCHANT)) {
-
-                        merchantBearableAmt = totalBearableFee;
-                        merchantBearableServiceTax = totalBearableFeeServiceTax;
-                        customerBearableAmt = subtract(totalAbsFee, merchantBearableAmt);
-                        customerBearableServiceTax = multiplyAndPercent(serviceTax, customerBearableAmt);
-
-                    }
-
-                    //txnFeeProcessFlag = Hybrid & bearableComponent = Amount & merchantFeeType = F & bearableEntity = C
-                    if (validateAndMatch(bearableEntity, ApplicationConstants.BEARABLE_ENTITY_CUSTOMER)) {
-
-                        customerBearableAmt = totalBearableFee;
-                        customerBearableServiceTax = totalBearableFeeServiceTax;
-                        merchantBearableAmt = subtract(totalAbsFee, customerBearableAmt);
-                        merchantBearableServiceTax = multiplyAndPercent(serviceTax, merchantBearableAmt);
-
-                    }
-
-
-                }
-
-                postAmount = merchPostedAmt.add(customerBearableAmt).add(customerBearableServiceTax);
-
-            }
+    postAmount = merchPostedAmt.add(customerBearableAmt).add(customerBearableServiceTax);
+}
