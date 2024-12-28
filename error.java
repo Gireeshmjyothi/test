@@ -1,33 +1,32 @@
- private static boolean validateAndMatch(Character a, Character b) {
+ if (pricingStructure.getMerchantFeeApplicable() == 'Y' && pricingStructure.getMerchantFeeType() == 'P') {
 
-        if (a == null || b == null) {
-            return false;
+            merchantFeeAbs = multiplyAndPercent(pricingStructure.getMerchantFee(), merchPostedAmt);
+
         }
 
-        return Character.toUpperCase(a) == Character.toUpperCase(b);
+        //2 . Other Fee Calculation
+        BigDecimal otherFeeAbs = BigDecimal.ZERO;
 
-    }
+        if (pricingStructure.getOtherFeeApplicable() == 'Y' && pricingStructure.getOtherFeeType() == 'P') {
 
-    private static boolean validateAndMatch(String a, String b) {
+            otherFeeAbs = multiplyAndPercent(pricingStructure.getOtherFee(), merchPostedAmt);
 
-        if (a == null || b == null) {
-            return false;
         }
 
-        return a.equalsIgnoreCase(b);
+        //3 . Gateway Fee Calculation
+        BigDecimal gtwFeeAbs = BigDecimal.ZERO;
 
-    }
-private static boolean validateAndMatch(Object a, Object b) {
-    return Optional.ofNullable(a)
-            .flatMap(first -> Optional.ofNullable(b)
-                    .map(second -> {
-                        if (first instanceof Character && second instanceof Character) {
-                            return Character.toUpperCase((Character) first) == Character.toUpperCase((Character) second);
-                        }
-                        if (first instanceof String && second instanceof String) {
-                            return ((String) first).equalsIgnoreCase((String) second);
-                        }
-                        return false;
-                    }))
-            .orElse(false);
-}
+        if (pricingStructure.getGtwFeeApplicable() == 'Y' && pricingStructure.getGtwFeeType() == 'P') {
+
+            gtwFeeAbs = multiplyAndPercent(pricingStructure.getGtwFee(), merchPostedAmt);
+
+        }
+
+        //4 . Agg Service Fee Calculation
+        BigDecimal aggServiceFeeAbs = BigDecimal.ZERO;
+
+        if (pricingStructure.getAggServiceFeeApplicable() == 'Y' && pricingStructure.getAggServiceFeeType() == 'P') {
+
+            aggServiceFeeAbs = multiplyAndPercent(pricingStructure.getAggServiceFee(), merchPostedAmt);
+
+        }
