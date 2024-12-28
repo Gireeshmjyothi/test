@@ -44,4 +44,6 @@ public ResponseEntity<Object> handleJsonProcessingException(JsonProcessingExcept
                     .build()
     );
 }
-
+private String encryptPaymentVerificationResponse(PaymentVerificationResponse paymentVerificationResponse, MerchantInfoDTO merchantDto) {
+    return encryptionDecryptionUtil.encryptRequest(objectMapper.writeValueAsString(paymentVerificationResponse), merchantDto);
+}
