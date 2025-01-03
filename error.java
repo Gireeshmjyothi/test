@@ -31,3 +31,50 @@ private PaymentVerificationResponse buildPaymentVerificationResponse(List<Object
                 .orderInfo(orderDto)
                 .build();
     }
+
+private PaymentVerificationResponse buildPaymentVerificationResponse(List<Object[]> transactionOrderList) {
+    logger.info("Mapping Order data.");
+    
+    // Retrieve the first order data and map to OrderInfoDto
+    Object[] firstRecord = transactionOrderList.get(0);
+    Order firstOrder = (Order) firstRecord[1];
+    OrderInfoDto orderDto = mapOrderToDto(firstOrder);
+
+    logger.info("Mapping Transaction data.");
+    // Map transactions to PaymentVerificationDto
+    List<PaymentVerificationDto> transactionsDTOs = transactionOrderList.stream()
+            .map(this::mapTransactionToDto)
+            .collect(Collectors.toList());
+
+    logger.info("Transaction and Order data mapped.");
+    // Build and return the response
+    return PaymentVerificationResponse.builder()
+            .paymentInfo(transactionsDTOs)
+            .orderInfo(orderDto)
+            .build();
+}
+
+private OrderInfoDto mapOrderToDto(Order order) {
+    return OrderInfoDto.builder()
+            .sbiOrderId(ObjectUtils.defaultIfNull(order.getSbiOrderRefNumber(), ""))
+            .merchantOrderNumber(ObjectUtils.defaultIfNull(order.getOrderRefNumber(), ""))
+            .orderStatus(ObjectUtils.defaultIfNull(order.getStatus(), OrderStatus.UNKNOWN))
+            .currency(ObjectUtils.defaultIfNull(order.getCurrencyCode(), ""))
+            .build();
+}
+
+private PaymentVerificationDto mapTransactionToDto(Object[] record) {
+    Transaction transaction = (Transaction) record[0];
+    return PaymentVerificationDto.builder()
+            .atrn(ObjectUtils.defaultIfNull(transaction.getAtrnNumber(), ""))
+            .orderAmount(ObjectUtils.defaultIfNull(transaction.getOrderAmount(), BigDecimal.ZERO))
+            .totalAmount(ObjectUtils.defaultIfNull(transaction.getDebitAmount(), BigDecimal.ZERO))
+            .transactionStatus(ObjectUtils.defaultIfNull(transaction.getTransactionStatus(), ""))
+            .payMode(ObjectUtils.defaultIfNull(transaction.getPayMode(), ""))
+            .bankName(ObjectUtils.defaultIfNull(transaction.getChannelBank(), ""))
+            .bankTxnNumber(ObjectUtils.defaultIfNull(transaction.getBankReferenceNumber(), ""))
+            .processor(ObjectUtils.defaultIfNull(transaction.getChannelBank(), ""))
+            .transactionTime(ObjectUtils.defaultIfNull(transaction.getCreatedDate(), 0L))
+            .cin(ObjectUtils.defaultIfNull(transaction.getCin(), ""))
+            .build();
+}
