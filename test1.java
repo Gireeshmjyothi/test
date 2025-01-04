@@ -1,71 +1,68 @@
- @Query("""
-        SELECT t, o
-        FROM Transaction t
-        INNER JOIN Order o
-        ON t.orderRefNumber = o.orderRefNumber
-        WHERE t.atrnNumber = :atrnNumber
-        AND (:orderRefNumber IS NULL OR t.orderRefNumber = :orderRefNumber)
-        AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
-        AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
-    """)
-    Optional<List<Object[]>> findTransactionWithOrder(
-            @Param("atrnNumber") String atrnNumber,
-            @Param("orderRefNumber") String orderRefNumber,
-            @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
-            @Param("orderAmount") BigDecimal orderAmount);
+package com.example.dao;
 
+import com.example.dto.ErrorLogDto;
+import com.example.entity.ErrorLog;
+import com.example.enums.EntityType;
+import com.example.enums.FailureReason;
+import com.example.enums.PayMode;
+import com.example.repository.ErrorLogRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
-private PaymentPushStatusVerificationResponse mapListOfObjectToPaymentPushStatusVerificationResponse(List<Object[]> transactionResponse) {
-        if(transactionResponse.isEmpty()){
-            throw new TransactionException(ErrorConstants.NOT_FOUND_ERROR_CODE, MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Transaction"));
-        }
-        Object[] transactionsRaw = transactionResponse.getFirst();
-        List<PaymentInfoDto> transactions = new ArrayList<>();
-        OrderDetailDto order = null;
-            PaymentInfoDto transaction = objectMapper.convertValue(transactionsRaw[0], PaymentInfoDto.class);
-            transactions.add(transaction);
-            
-        Object[] orderRaw = transactionResponse.get(1);
-        
-        if (orderRaw != null) {
-            order = objectMapper.convertValue(orderRaw[1], OrderDetailDto.class);
-        }
-        return PaymentPushStatusVerificationResponse.builder()
-                .paymentInfo(transactions)
-                .orderInfo(order)
-                .build();
+import static org.mockito.Mockito.*;
+
+class ErrorLogDaoTest {
+
+    @Mock
+    private ErrorLogRepository errorLogRepository;
+
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @InjectMocks
+    private ErrorLogDao errorLogDao;
+
+    ErrorLogDaoTest() {
+        MockitoAnnotations.openMocks(this);
     }
 
- @Query(value = """
-                SELECT t, o
-                FROM Transaction t
-                INNER JOIN Order o
-                ON t.orderRefNumber = o.orderRefNumber
-                WHERE t.atrnNumber = :atrnNumber
-                AND (:orderRefNumber IS NULL OR t.orderRefNumber = :orderRefNumber)
-                AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
-                AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
-            """)
-    Optional<List<Object[]>> fetchTransactionAndOrderData(
-            @Param("atrnNumber") String atrnNumber,
-            @Param("orderRefNumber") String orderRefNumber,
-            @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
-            @Param("orderAmount") BigDecimal orderAmount);
+    @Test
+    void testSaveErrorLog() {
+        // Arrange
+        ErrorLogDto errorLogDto = ErrorLogDto.builder()
+                .mID("MID123")
+                .orderRefNumber("ORDER123")
+                .sbiOrderRefNumber("SBI123")
+                .atrn("ATRN123")
+                .entityType(EntityType.USER)
+                .payMode(PayMode.CREDIT_CARD)
+                .failureReason(FailureReason.NETWORK_ISSUE)
+                .errorCode("ERR001")
+                .errorMessage("Network timeout")
+                .build();
 
+        ErrorLog errorLog = ErrorLog.builder()
+                .mID("MID123")
+                .orderRefNumber("ORDER123")
+                .sbiOrderRefNumber("SBI123")
+                .atrn("ATRN123")
+                .entityType(EntityType.USER)
+                .payMode(PayMode.CREDIT_CARD)
+                .failureReason(FailureReason.NETWORK_ISSUE)
+                .errorCode("ERR001")
+                .errorMessage("Network timeout")
+                .build();
 
-    @Query("""
-            SELECT t, o
-            FROM Transaction t
-            INNER JOIN Order o
-            ON t.orderRefNumber = o.orderRefNumber
-            WHERE t.orderRefNumber = :orderRefNumber
-            AND t.merchantId = :merchantId
-            AND o.orderAmount = :orderAmount
-            AND (:atrnNumber IS NULL OR t.atrnNumber = :atrnNumber)
-            AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
-            """)
-    Optional<List<Object[]>> findTransactionAndOrderDetails(@Param("orderRefNumber") String orderRefNumber,
-                                                            @Param("merchantId") String merchantId,
-                                                            @Param("orderAmount") BigDecimal orderAmount,
-                                                            @Param("atrnNumber") String atrnNumber,
-                                                            @Param("sbiOrderRefNumber") String sbiOrderRefNumber);
+        when(objectMapper.convertValue(errorLogDto, ErrorLog.class)).thenReturn(errorLog);
+
+        // Act
+        errorLogDao.saveErrorLog(errorLogDto);
+
+        // Assert
+        verify(objectMapper, times(1)).convertValue(errorLogDto, ErrorLog.class);
+        verify(errorLogRepository, times(1)).save(errorLog);
+    }
+}
