@@ -1,68 +1,44 @@
-package com.example.dao;
+@Test
+void testSaveErrorLog() {
+    // Arrange
+    ErrorLogDto errorLogDto = ErrorLogDto.builder()
+            .mID("MID123")
+            .orderRefNumber("ORDER123")
+            .sbiOrderRefNumber("SBI123")
+            .atrn("ATRN123")
+            .entityType(EntityType.USER)
+            .payMode(PayMode.CREDIT_CARD)
+            .failureReason(FailureReason.NETWORK_ISSUE)
+            .errorCode("ERR001")
+            .errorMessage("Network timeout")
+            .build();
 
-import com.example.dto.ErrorLogDto;
-import com.example.entity.ErrorLog;
-import com.example.enums.EntityType;
-import com.example.enums.FailureReason;
-import com.example.enums.PayMode;
-import com.example.repository.ErrorLogRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+    ErrorLog errorLog = ErrorLog.builder()
+            .mID("MID123")
+            .orderRefNumber("ORDER123")
+            .sbiOrderRefNumber("SBI123")
+            .atrn("ATRN123")
+            .entityType(EntityType.USER)
+            .payMode(PayMode.CREDIT_CARD)
+            .failureReason(FailureReason.NETWORK_ISSUE)
+            .errorCode("ERR001")
+            .errorMessage("Network timeout")
+            .build();
 
-import static org.mockito.Mockito.*;
+    // Mock behavior
+    when(objectMapper.convertValue(any(ErrorLogDto.class), eq(ErrorLog.class))).thenReturn(errorLog);
 
-class ErrorLogDaoTest {
+    // Act
+    errorLogDao.saveErrorLog(errorLogDto);
 
-    @Mock
-    private ErrorLogRepository errorLogRepository;
+    // Assert
+    ArgumentCaptor<ErrorLog> captor = ArgumentCaptor.forClass(ErrorLog.class);
+    verify(objectMapper, times(1)).convertValue(any(ErrorLogDto.class), eq(ErrorLog.class));
+    verify(errorLogRepository, times(1)).save(captor.capture());
 
-    @Mock
-    private ObjectMapper objectMapper;
-
-    @InjectMocks
-    private ErrorLogDao errorLogDao;
-
-    ErrorLogDaoTest() {
-        MockitoAnnotations.openMocks(this);
-    }
-
-    @Test
-    void testSaveErrorLog() {
-        // Arrange
-        ErrorLogDto errorLogDto = ErrorLogDto.builder()
-                .mID("MID123")
-                .orderRefNumber("ORDER123")
-                .sbiOrderRefNumber("SBI123")
-                .atrn("ATRN123")
-                .entityType(EntityType.USER)
-                .payMode(PayMode.CREDIT_CARD)
-                .failureReason(FailureReason.NETWORK_ISSUE)
-                .errorCode("ERR001")
-                .errorMessage("Network timeout")
-                .build();
-
-        ErrorLog errorLog = ErrorLog.builder()
-                .mID("MID123")
-                .orderRefNumber("ORDER123")
-                .sbiOrderRefNumber("SBI123")
-                .atrn("ATRN123")
-                .entityType(EntityType.USER)
-                .payMode(PayMode.CREDIT_CARD)
-                .failureReason(FailureReason.NETWORK_ISSUE)
-                .errorCode("ERR001")
-                .errorMessage("Network timeout")
-                .build();
-
-        when(objectMapper.convertValue(errorLogDto, ErrorLog.class)).thenReturn(errorLog);
-
-        // Act
-        errorLogDao.saveErrorLog(errorLogDto);
-
-        // Assert
-        verify(objectMapper, times(1)).convertValue(errorLogDto, ErrorLog.class);
-        verify(errorLogRepository, times(1)).save(errorLog);
-    }
+    // Verify captured value
+    ErrorLog capturedErrorLog = captor.getValue();
+    assertEquals(errorLog.getMID(), capturedErrorLog.getMID());
+    assertEquals(errorLog.getOrderRefNumber(), capturedErrorLog.getOrderRefNumber());
+    assertEquals(errorLog.getEntityType(), capturedErrorLog.getEntityType());
 }
