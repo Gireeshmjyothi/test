@@ -76,3 +76,25 @@ Effort Estimate:
 
 Let me know if you need further refinement!
 
+
+  Description:
+
+Develop a reusable method in the DAO layer to log application errors with the following attributes:
+
+1. Id Type :UUID.
+
+2. Order Reference Number : A unique String to representing the specific order.
+
+3. SBI Order Reference Number : A unique String to representing the specific order from SBI end.
+
+4. ATRN Number : A unique String to representing the specific transaction success or failure.
+
+5. Error Code: A unique Enum representing the specific error.
+
+6. Pay Mode : A unique Enum representing the specific pay mode (eg. NB, CC, DC).
+
+7. Failure Reason : A unique representing the specific failure reasion.
+
+7. Entity : A Enum which represent the entity.
+
+8. Error Message : Any String.
