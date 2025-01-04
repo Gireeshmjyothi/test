@@ -5,38 +5,53 @@ Story Point for GitLab Ticket
 
 Title:
 
-Implement a Generic DAO for Logging Errors in a Unified Database Table
+Implement a Generic DAO for Logging Application Errors with Detailed Attributes
 
 
 ---
 
 Description:
 
-Develop a reusable method in the DAO layer to log application errors with the following attributes:
+Develop a reusable method in the DAO layer to log detailed application error information into a centralized database table. The method will handle the following attributes:
 
-1. Error Type: An enum categorizing errors (e.g., PAYMENT_FAILURE, LOGICAL_FAILURE, etc.).
-
-
-2. Error Code: A unique integer representing the specific error.
+1. Id Type: UUID to uniquely identify each error log entry.
 
 
-3. Additional Details: A string representation of useful numbers or additional information.
+2. Order Reference Number: A unique string representing the specific order.
 
 
-4. Timestamp: The time when the error occurred.
+3. SBI Order Reference Number: A unique string representing the order reference number from the SBI system.
+
+
+4. ATRN Number: A unique string representing the specific transaction's success or failure.
+
+
+5. Error Code: An enum categorizing errors (e.g., PAYMENT_FAILURE, LOGICAL_FAILURE, etc.).
+
+
+6. Pay Mode: An enum representing the payment mode (e.g., NB, CC, DC).
+
+
+7. Failure Reason: A string describing the specific reason for the failure.
+
+
+8. Entity: An enum to represent the application entity associated with the error.
+
+
+9. Error Message: A string for additional details or context about the error.
 
 
 
-The method should insert error logs into a unified database table and be reusable throughout the application. The table will store details in a structured format to support debugging and analytics.
+The error logs will be stored in a unified database table, allowing for easy debugging, monitoring, and analytics.
 
 
 ---
 
 Acceptance Criteria:
 
-[ ] Define an ErrorLog entity class with fields for error type, error code, additional details, and timestamp.
+[ ] Define an ErrorLog entity class with the required fields and appropriate constraints (nullable and non-nullable).
 
-[ ] Create an enum for error types with values like PAYMENT_FAILURE, LOGICAL_FAILURE, etc.
+[ ] Create enum types for Error Code, Pay Mode, and Entity.
 
 [ ] Implement a custom DAO layer:
 
@@ -45,11 +60,11 @@ Define a saveErrorLog() method in the DAO interface.
 Provide an implementation using EntityManager for persisting error logs.
 
 
-[ ] Develop a utility method (logError) to simplify logging errors by accepting parameters like error type, code, and details.
+[ ] Develop a utility method to simplify logging errors by accepting parameters for all the attributes.
 
-[ ] Ensure proper validation of inputs and non-nullable constraints.
+[ ] Ensure UUID is auto-generated and used as the primary key.
 
-[ ] Write unit tests for the DAO and utility methods.
+[ ] Write unit tests to validate DAO and utility method functionality.
 
 
 
@@ -69,32 +84,13 @@ High
 
 Effort Estimate:
 
-3 Story Points
+5 Story Points
+
+Reason: The task requires defining multiple fields, creating enums, implementing a custom DAO, and ensuring proper error handling and validation.
+
 
 
 ---
 
-Let me know if you need further refinement!
+Let me know if additional adjustments are needed!
 
-
-  Description:
-
-Develop a reusable method in the DAO layer to log application errors with the following attributes:
-
-1. Id Type :UUID.
-
-2. Order Reference Number : A unique String to representing the specific order.
-
-3. SBI Order Reference Number : A unique String to representing the specific order from SBI end.
-
-4. ATRN Number : A unique String to representing the specific transaction success or failure.
-
-5. Error Code: A unique Enum representing the specific error.
-
-6. Pay Mode : A unique Enum representing the specific pay mode (eg. NB, CC, DC).
-
-7. Failure Reason : A unique representing the specific failure reasion.
-
-7. Entity : A Enum which represent the entity.
-
-8. Error Message : Any String.
