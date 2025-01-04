@@ -42,3 +42,26 @@ void testSaveErrorLog() {
     assertEquals(errorLog.getOrderRefNumber(), capturedErrorLog.getOrderRefNumber());
     assertEquals(errorLog.getEntityType(), capturedErrorLog.getEntityType());
 }
+
+
+Wanted but not invoked:
+objectMapper.convertValue(
+    <any com.epay.transaction.dto.ErrorLogDto>,
+    class com.epay.transaction.entity.ErrorLog
+);
+-> at com.fasterxml.jackson.databind.ObjectMapper.convertValue(ObjectMapper.java:4475)
+Actually, there were zero interactions with this mock.
+
+Wanted but not invoked:
+objectMapper.convertValue(
+    <any com.epay.transaction.dto.ErrorLogDto>,
+    class com.epay.transaction.entity.ErrorLog
+);
+-> at com.fasterxml.jackson.databind.ObjectMapper.convertValue(ObjectMapper.java:4475)
+Actually, there were zero interactions with this mock.
+
+	at com.fasterxml.jackson.databind.ObjectMapper.convertValue(ObjectMapper.java:4475)
+	at com.epay.transaction.dao.ErrorLogDaoTest.testSaveErrorLog(ErrorLogDaoTest.java:71)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
