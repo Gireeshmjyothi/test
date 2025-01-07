@@ -1,136 +1,61 @@
-@ExtendWith(MockitoExtension.class)
-class ErrorLogDaoTest {
+Title: Fetch and Analyze Error Log Data by Merchant ID and Date Range
 
-    @InjectMocks
-    private ErrorLogDao errorLogDao;
+Description:
 
-    @Mock
-    private ErrorLogRepository errorLogRepository;
+Develop a feature to fetch data from the error log table based on a provided mid (Merchant ID) and a specified date range (fromDate to toDate). The data should be grouped by failure reason, and only entries with an existing atrn in the transaction table should be considered. After fetching the data, calculate and segregate the failure percentage for each failure reason.
 
-    @Mock
-    private ObjectMapper objectMapper;
+Acceptance Criteria:
 
-    @Test
-    void testSaveErrorLog() {
-        // Arrange
-        ErrorLogDto errorLogDto = ErrorLogDto.builder()
-                .mID("MID123")
-                .orderRefNumber("ORDER123")
-                .sbiOrderRefNumber("SBI123")
-                .atrn("ATRN123")
-                .entityType(EntityType.USER)
-                .payMode(PayMode.CREDIT_CARD)
-                .failureReason(FailureReason.NETWORK_ISSUE)
-                .errorCode("ERR001")
-                .errorMessage("Network timeout")
-                .build();
+1. Input Validation:
 
-        ErrorLog errorLog = ErrorLog.builder()
-                .mID("MID123")
-                .orderRefNumber("ORDER123")
-                .sbiOrderRefNumber("SBI123")
-                .atrn("ATRN123")
-                .entityType(EntityType.USER)
-                .payMode(PayMode.CREDIT_CARD)
-                .failureReason(FailureReason.NETWORK_ISSUE)
-                .errorCode("ERR001")
-       
-            
-            
-            
-            .errorMessage("Network timeout")
-                .build();
+The system must validate that mid, fromDate, and toDate are provided.
 
-        // Mock behavior
-        when(objectMapper.convertValue(any(ErrorLogDto.class), eq(ErrorLog.class))).thenReturn(errorLog);
+Ensure fromDate is not later than toDate.
 
-        // Act
-        errorLogDao.saveErrorLog(errorLogDto);
 
-        // Assert
-        verify(objectMapper, times(1)).convertValue(any(ErrorLogDto.class), eq(ErrorLog.class));
-        verify(errorLogRepository, times(1)).save(errorLog);
-    }
-}
-@Test
-void testSaveErrorLog_NullErrorLogDto() {
-    // Act & Assert
-    assertThrows(NullPointerException.class, () -> errorLogDao.saveErrorLog(null));
-    verifyNoInteractions(objectMapper, errorLogRepository); // Ensure no interaction occurred
-}
-@Test
-void testSaveErrorLog_ObjectMapperThrowsException() {
-    // Arrange
-    ErrorLogDto errorLogDto = ErrorLogDto.builder()
-            .mID("MID123")
-            .build();
 
-    when(objectMapper.convertValue(any(ErrorLogDto.class), eq(ErrorLog.class)))
-            .thenThrow(new IllegalArgumentException("Invalid data"));
+2. Data Fetching:
 
-    // Act & Assert
-    assertThrows(IllegalArgumentException.class, () -> errorLogDao.saveErrorLog(errorLogDto));
+Verify if the atrn number exists in the transaction table for the provided mid.
 
-    // Verify interactions
-    verify(objectMapper, times(1)).convertValue(any(ErrorLogDto.class), eq(ErrorLog.class));
-    verifyNoInteractions(errorLogRepository); // Save method should not be called
-}
-@Test
-void testSaveErrorLog_RepositoryThrowsException() {
-    // Arrange
-    ErrorLogDto errorLogDto = ErrorLogDto.builder()
-            .mID("MID123")
-            .build();
+Fetch error log entries from the error log table for the given mid and within the specified date range.
 
-    ErrorLog errorLog = ErrorLog.builder()
-            .mID("MID123")
-            .build();
 
-    when(objectMapper.convertValue(any(ErrorLogDto.class), eq(ErrorLog.class))).thenReturn(errorLog);
-    doThrow(new RuntimeException("Database error")).when(errorLogRepository).save(any(ErrorLog.class));
 
-    // Act & Assert
-    assertThrows(RuntimeException.class, () -> errorLogDao.saveErrorLog(errorLogDto));
+3. Data Grouping:
 
-    // Verify interactions
-    verify(objectMapper, times(1)).convertValue(any(ErrorLogDto.class), eq(ErrorLog.class));
-    verify(errorLogRepository, times(1)).save(any(ErrorLog.class));
-}
+Group the fetched error log data by failure reason.
 
-@Test
-void testSaveErrorLog_InvalidData() {
-    // Arrange
-    ErrorLogDto errorLogDto = ErrorLogDto.builder()
-            .mID("") // Invalid mID (empty string)
-            .build();
 
-    ErrorLog errorLog = ErrorLog.builder()
-            .mID("") // Invalid data
-            .build();
 
-    when(objectMapper.convertValue(any(ErrorLogDto.class), eq(ErrorLog.class))).thenReturn(errorLog);
+4. Failure Percentage Calculation:
 
-    // Act
-    errorLogDao.saveErrorLog(errorLogDto);
+Calculate the total number of errors for the mid and date range.
 
-    // Assert
-    verify(objectMapper, times(1)).convertValue(any(ErrorLogDto.class), eq(ErrorLog.class));
-    verify(errorLogRepository, times(1)).save(any(ErrorLog.class));
-}
-@Test
-void testSaveErrorLog_UnhandledException() {
-    // Arrange
-    ErrorLogDto errorLogDto = ErrorLogDto.builder()
-            .mID("MID123")
-            .build();
+Determine the count and percentage of errors for each failure reason relative to the total errors.
 
-    doThrow(new RuntimeException("Unhandled exception")).when(objectMapper).convertValue(any(ErrorLogDto.class), eq(ErrorLog.class));
 
-    // Act & Assert
-    assertThrows(RuntimeException.class, () -> errorLogDao.saveErrorLog(errorLogDto));
 
-    // Verify no save is attempted
-    verifyNoInteractions(errorLogRepository);
-}
-                 
+5. Output:
+
+Return a structured response containing each failure reason, the corresponding error count, and its failure percentage.
+
+
+
+6. Error Handling:
+
+Handle scenarios where no atrn exists in the transaction table.
+
+Provide appropriate error messages for invalid inputs or empty results.
+
+
+
+7. Performance:
+
+Ensure that the solution is optimized for handling large datasets efficiently.
+
+
+
+
+By fulfilling these criteria, the feature will provide insights into error trends and failure reasons for a specified merchant, aiding in diagnostic and decision-making processes.
 
