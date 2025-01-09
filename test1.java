@@ -94,3 +94,12 @@ public class BankService {
         return new BankDetailDto(bankMasterView, bankBranchView);
     }
 }
+@Repository
+public interface BankRepository extends JpaRepository<BankBranchView, String> {
+
+    @Query(value = "SELECT bb.*, bm.* " +
+                   "FROM BANK_BRANCHES_VIEW bb " +
+                   "INNER JOIN BANK_MASTER_VIEW bm ON bb.bankId = bm.bankId " +
+                   "WHERE bb.ifscCode = :ifsccode", nativeQuery = true)
+    List<Object[]> findBankMasterAndBranchByIfscCode(@Param("ifsccode") String ifsccode);
+}
