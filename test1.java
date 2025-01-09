@@ -1,16 +1,3 @@
-@Data
-@Builder
-public class BankMasterViewDto {
-    private String bankId;
-    private String bankname;
-    private Long creationDate;
-    private String createdBy;
-    private Long modifiedDate;
-    private String modifiedBy;
-    private String status;
-    private String bankAbbreviation;
-    private String bankName;
-}
 
 @Data
 @Entity
@@ -31,34 +18,27 @@ public class BankMasterView {
 
 }  
 
- @Query("SELECT b FROM BankMasterView b WHERE b.status = 'A'")
-    List<BankMasterView> findAllActiveBanks();
+@Data
+@Entity
+@Table(name = "BANK_BRANCHES_VIEW")
+public class BankBranchView {
+    @Id
+    private String branchId;
+    private String bankId;
+    private String branchName;
+    private String ifscCode;
+    private String branchAddress;
+    private String city;
+    private String state;
+    private char status;
+    private String remarks;
+    private String remarks1;
+    private String checkerRemark;
+    private String checkerRemark1;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+    private Date creationDate;
+    private String createdBy;
+    private Date modifiedDate;
+    private String modifiedBy;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
-@Service
-public class BankMasterViewService {
-
-    private final BankMasterViewRepository bankMasterViewRepository;
-    private final ObjectMapper objectMapper;
-
-    @Autowired
-    public BankMasterViewService(BankMasterViewRepository bankMasterViewRepository, ObjectMapper objectMapper) {
-        this.bankMasterViewRepository = bankMasterViewRepository;
-        this.objectMapper = objectMapper;
-    }
-
-    public List<BankMasterViewDto> getAllActiveBankDtos() {
-        List<BankMasterView> activeBanks = bankMasterViewRepository.findAllActiveBanks();
-
-        // Convert list of entities to list of DTOs
-        return activeBanks.stream()
-                          .map(bank -> objectMapper.convertValue(bank, BankMasterViewDto.class))
-                          .collect(Collectors.toList());
-    }
 }
