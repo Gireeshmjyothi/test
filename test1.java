@@ -1,4 +1,15 @@
+@Repository
+public interface BankRepository extends JpaRepository<BankBranchView, String> {
 
+    @Query(value = """
+            SELECT bb, bm
+            FROM BankBranchView bb
+            INNER JOIN BankMasterView bm
+            ON bb.bankId = bm.bankId
+            WHERE bb.ifscCode = :ifsccode
+            """)
+    Optional<List<Object[]>> fetchBankBranchAndMasterByIfscCode(@Param("ifsccode") String ifsccode);
+}
 @Data
 @Entity
 @Table(name = "BANK_MASTER_VIEW")
