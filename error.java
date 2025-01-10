@@ -70,3 +70,8 @@ public interface ViewRecentTxnRepository extends JpaRepository<ViewRecentTxn, St
                                                           @Param("startDate") Date startDate,
                                                           @Param("endDate") Date endDate);
 }
+
+private String formattxnMonth(Long createdDate) {
+        SimpleDateFormat dateformat = new SimpleDateFormat("dd-MMM-yy");
+        return dateformat.format(new Date(createdDate));
+    }
