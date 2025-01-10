@@ -17,3 +17,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
                                                         @Param("startDate") Date startDate,
                                                         @Param("endDate") Date endDate);
 }
+
+@Data
+@Entity
+@Table(name = "VIEW_RECENT_TXN")
+public class ViewRecentTxn {
+    @Id
+    @Column(name = "MERCHANT_ID")
+    private String mID;
+    private int count;
+    private int amount;
+    private int tax;
+    @Column(name = "CREATIONDATE")
+    private Date creationDate;
+}
