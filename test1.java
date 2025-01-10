@@ -42,64 +42,26 @@ public class BankBranchView {
     private String modifiedBy;
 
 }
-@Repository
-public interface BankRepository extends JpaRepository<BankBranchView, String> {
 
-    @Query(value = "SELECT bm.*, bb.* " +
-                   "FROM BANK_MASTER_VIEW bm " +
-                   "JOIN BANK_BRANCHES_VIEW bb ON bm.bankId = bb.bankId " +
-                   "WHERE bb.ifscCode = :ifsccode", nativeQuery = true)
-    Object[] findBankMasterAndBranchByIfscCode(@Param("ifsccode") String ifsccode);
-}
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import java.util.Optional;
-import java.util.stream.Stream;
+@Query(value = """
+                SELECT t, o
+                FROM Transaction t
+                INNER JOIN Order o
+                ON t.orderRefNumber = o.orderRefNumber
+                WHERE t.atrnNumber = :atrnNumber
+                AND (:orderRefNumber IS NULL OR t.orderRefNumber = :orderRefNumber)
+                AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
+                AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
+            """)
+    Optional<List<Object[]>> fetchTransactionAndOrderDetail(
+            @Param("atrnNumber") String atrnNumber,
+            @Param("orderRefNumber") String orderRefNumber,
+            @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
+            @Param("orderAmount") BigDecimal orderAmount);
 
-@Service
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Optional;
-
-@Service
-public class BankService {
-
-    @Autowired
-    private BankRepository bankRepository;
-
-    public Optional<BankDetailDto> getBankDetailsByIfscCode(String ifsccode) {
-        List<Object[]> results = bankRepository.findBankMasterAndBranchByIfscCode(ifsccode);
-        
-        return results.stream()
-                      .findFirst() // Assuming IFSC code returns a single result or the first result is required
-                      .map(this::mapToBankDetailDto);
-    }
-
-    private BankDetailDto mapToBankDetailDto(Object[] result) {
-        // Assuming that bank master fields are in the first half of the array and branch fields in the second half
-        BankMasterView bankMasterView = BankMasterView.builder()
-                                                      .bankId((String) result[0])
-                                                      .bankname((String) result[1])
-                                                      // Map other fields as needed
-                                                      .build();
-
-        BankBranchView bankBranchView = BankBranchView.builder()
-                                                      .branchId((String) result[result.length / 2])
-                                                      .bankId((String) result[(result.length / 2) + 1])
-                                                      // Map other fields as needed
-                                                      .build();
-
-        return new BankDetailDto(bankMasterView, bankBranchView);
-    }
-}
-@Repository
-public interface BankRepository extends JpaRepository<BankBranchView, String> {
-
-    @Query(value = "SELECT bb.*, bm.* " +
-                   "FROM BANK_BRANCHES_VIEW bb " +
-                   "INNER JOIN BANK_MASTER_VIEW bm ON bb.bankId = bm.bankId " +
-                   "WHERE bb.ifscCode = :ifsccode", nativeQuery = true)
-    List<Object[]> findBankMasterAndBranchByIfscCode(@Param("ifsccode") String ifsccode);
-}
+@Query(value = "SELECT bm.*, bb.*" +
+            "FROM BANK_MASTER_VIEW bm " +
+            "JOIN BANK_BRANCHES_VIEW bb ON bm.bankid = bb.bank_id " +
+            "WHERE bb.IFSC_CODE = :ifscCode", nativeQuery = true)
+    List<Object[]> findBankMasterAndBranchByIfscCode(@Param("ifscCode") String ifscCode);
