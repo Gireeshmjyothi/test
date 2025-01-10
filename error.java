@@ -31,3 +31,42 @@ public class ViewRecentTxn {
     @Column(name = "CREATIONDATE")
     private Date creationDate;
 }
+package com.example.repository;
+
+import com.example.entity.ViewRecentTxn;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.Date;
+import java.util.List;
+
+public interface ViewRecentTxnRepository extends JpaRepository<ViewRecentTxn, String> {
+
+    @Query(value = "SELECT * FROM VIEW_RECENT_TXN v " +
+                   "WHERE v.MERCHANT_ID = :mid " +
+                   "AND v.CREATIONDATE BETWEEN :startDate AND :endDate " +
+                   "ORDER BY v.CREATIONDATE", nativeQuery = true)
+    List<ViewRecentTxn> findTransactionsByMidAndDateRange(@Param("mid") String mid,
+                                                          @Param("startDate") Date startDate,
+                                                          @Param("endDate") Date endDate);
+}
+
+package com.example.repository;
+
+import com.example.entity.ViewRecentTxn;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import java.util.Date;
+import java.util.List;
+
+public interface ViewRecentTxnRepository extends JpaRepository<ViewRecentTxn, String> {
+
+    @Query("SELECT v FROM ViewRecentTxn v " +
+           "WHERE v.mID = :mid " +
+           "AND v.creationDate BETWEEN :startDate AND :endDate " +
+           "ORDER BY v.creationDate")
+    List<ViewRecentTxn> findTransactionsByMidAndDateRange(@Param("mid") String mid,
+                                                          @Param("startDate") Date startDate,
+                                                          @Param("endDate") Date endDate);
+}
