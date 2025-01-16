@@ -19,3 +19,11 @@
         tokenDto.setUpdatedBy(System.getProperty("user.name"));
         return tokenDto;
     }
+
+
+@Query(value = """ 
+            SELECT new com.epay.admin.dto.MerchantDVPDto(m.merchantId, m.dvpType)
+            FROM Merchant m
+            WHERE m.merchantId IN :merchantIds
+            """)
+    Optional<List<MerchantDVPDto>> findByIds(@Param("merchantIds") List<String> merchantIds);
