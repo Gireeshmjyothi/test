@@ -7,10 +7,12 @@ List<Token> findByTokenTypeAndTokenExpiryTimeLessThan(TokenType tokenType, Long 
 List<Token> findTokensByTypeExpiryAndOrderStatus(@Param("tokenType") TokenType tokenType,
                                                  @Param("currentDate") Long currentDate);
 @Query(value = "SELECT t.* FROM token t " +
-               "JOIN orders o ON t.mid = o.mid " +
-               "WHERE t.token_type = :tokenType " +
-               "AND t.token_expiry_time < :currentDate " +
-               "AND (o.order_status != 'PAID' OR o.order_status IS NULL)", 
-       nativeQuery = true)
-List<Token> findTokensByTypeExpiryAndOrderStatus(@Param("tokenType") TokenType tokenType,
-                                                 @Param("currentDate") Long currentDate);
+            "JOIN orders o ON t.order_hash = o.order_hash " +
+            "WHERE t.token_type = :tokenType " +
+            "AND t.token_expiry_time < :currentDate " +
+            "AND (o.status != 'PAID' OR o.status IS NULL)",
+            nativeQuery = true)
+    List<Token> findTokensByTypeExpiryAndOrderStatus(@Param("tokenType") TokenType tokenType,
+                                                     @Param("currentDate") Long currentDate);
+
+Caused by: org.hibernate.exception.SQLGrammarException: JDBC exception executing SQL [SELECT t.* FROM token t JOIN orders o ON t.order_hash = o.order_hash WHERE t.token_type = ? AND t.token_expiry_time < ? AND (o.status != 'PAID' OR o.status IS NULL)] [ORA-01722: invalid number
