@@ -1,22 +1,18 @@
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.CrudRepository;
-import org.springframework.transaction.annotation.Transactional;
+@Transactional
+@Modifying
+@Query(value = "UPDATE orders o " +
+               "SET o.status = 'FAILED' " +
+               "WHERE o.sbiOrderRefNumber IN :orderRefNumbers " +
+               "AND o.status = 'ATTEMPTED' " +
+               "AND EXISTS (SELECT 1 FROM transaction t WHERE t.sbiOrderRefNumber = o.sbiOrderRefNumber AND t.status = 'BOOKED' AND t.paymentStatus = 'PAYMENT_INITIATION_START')", nativeQuery = true)
+int updateOrderStatusToFailed(List<String> orderRefNumbers);
 
-import java.util.List;
-
-public interface OrderTransactionRepository extends CrudRepository<OrderTransaction, Long> {
-
-    @Transactional
-    @Modifying
-    @Query(value = "UPDATE orders o, transaction t " +
-                   "SET o.status = 'FAILED', t.status = 'FAILED' " +
-                   "WHERE o.sbiOrderRefNumber = t.sbiOrderRefNumber " +
-                   "AND o.status = 'ATTEMPTED' " +
-                   "AND t.status = 'BOOKED' " +
-                   "AND t.paymentStatus = 'PAYMENT_INITIATION_START' " +
-                   "AND o.sbiOrderRefNumber IN :orderRefNumbers", nativeQuery = true)
-    int updateOrderAndTransactionStatusToFailed(List<String> orderRefNumbers);
-}
-
-Caused by: org.hibernate.query.SyntaxException: At 1:15 and token ',', mismatched input ',' expecting SE [UPDATE Orders o, Transaction t SET o.status = 'FAILED', t.transactionStatus = 'FAILED' WHERE o.sbiOrderRefNumber = t.sbiOrderRefNumber AND o.status = 'ATTEMPTED' AND t.transactionStatus = 'BOOKED' AND t.paymentStatus = 'PAYMENT_INITIATED_START' AND o.sbiOrderRefNumber IN :orderRefNumbers]
+@Transactional
+@Modifying
+@Query(value = "UPDATE transaction t " +
+               "SET t.status = 'FAILED' " +
+               "WHERE t.sbiOrderRefNumber IN :orderRefNumbers " +
+               "AND t.status = 'BOOKED' " +
+               "AND t.paymentStatus = 'PAYMENT_INITIATION_START' " +
+               "AND EXISTS (SELECT 1 FROM orders o WHERE o.sbiOrderRefNumber = t.sbiOrderRefNumber AND o.status = 'ATTEMPTED')", nativeQuery = true)
+int updateTransactionStatusToFailed(List<String> orderRefNumbers);
