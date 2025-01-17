@@ -18,3 +18,5 @@ public interface OrderTransactionRepository extends CrudRepository<OrderTransact
                    "AND o.sbiOrderRefNumber IN :orderRefNumbers", nativeQuery = true)
     int updateOrderAndTransactionStatusToFailed(List<String> orderRefNumbers);
 }
+
+Caused by: org.hibernate.query.SyntaxException: At 1:15 and token ',', mismatched input ',' expecting SE [UPDATE Orders o, Transaction t SET o.status = 'FAILED', t.transactionStatus = 'FAILED' WHERE o.sbiOrderRefNumber = t.sbiOrderRefNumber AND o.status = 'ATTEMPTED' AND t.transactionStatus = 'BOOKED' AND t.paymentStatus = 'PAYMENT_INITIATED_START' AND o.sbiOrderRefNumber IN :orderRefNumbers]
