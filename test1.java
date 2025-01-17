@@ -17,3 +17,15 @@ void updateTransactionStatusToFailed(@Param("sbiOrderRefNumbers") List<String> s
        "AND EXISTS (SELECT 1 FROM Transaction t WHERE t.sbiOrderRefNumber = o.sbiOrderRefNumber " +
        "AND t.transactionStatus = 'BOOKED' AND t.paymentStatus = 'PAYMENT_INITIATED_START')")
 void updateOrderStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
+
+
+
+@Transactional
+@Modifying
+@Query("UPDATE Orders o " +
+       "SET o.status = 'EXPIRED' " +
+       "WHERE o.status = 'ATTEMPTED' " +
+       "AND o.sbiOrderRefNumber IN :sbiOrderRefNumbers " +
+       "AND EXISTS (SELECT 1 FROM Transaction t WHERE t.sbiOrderRefNumber = o.sbiOrderRefNumber " +
+       "AND t.transactionStatus = 'BOOKED' AND t.paymentStatus = '')")
+void updateOrderStatusToExpired(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
