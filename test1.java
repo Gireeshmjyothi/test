@@ -1,103 +1,35 @@
-@Query("SELECT o.sbiOrderRefNumber FROM Orders o " +
-       "JOIN Transaction t ON o.sbiOrderRefNumber = t.sbiOrderRefNumber " +
-       "WHERE o.status = 'ATTEMPTED' " +
-       "AND t.transactionStatus = 'BOOKED' " +
-       "AND t.paymentStatus = 'PAYMENT_INITIATED_START'")
-List<String> findSbiOrderRefNumbersForUpdate();
+start locator --name=locator
+Starting a GemFire Locator in F:\Epay\GemFire_Local_Server\GemFire_Local_Server\vmware-gemfire-10.1.2_torun_gfsh\vmware-gemfire-10.1.2\bin\locator...
+The Locator process terminated unexpectedly with exit status 1. Please refer to the log file in F:\Epay\GemFire_Local_Server\GemFire_Local_Server\vmware-gemfire-10.1.2_torun_gfsh\vmware-gemfire-10.1.2\bin\locator for full details.
 
-@Modifying
-@Query("UPDATE Transaction t " +
-       "SET t.transactionStatus = 'FAILED' " +
-       "WHERE t.sbiOrderRefNumber IN :sbiOrderRefNumbers")
-void updateTransactionStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
-
-@Modifying
-@Query("UPDATE Orders o " +
-       "SET o.status = 'FAILED' " +
-       "WHERE o.sbiOrderRefNumber IN :sbiOrderRefNumbers")
-void updateOrderStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
-
-
-To update both the Transaction and Order tables in one go, considering that some conditions might change after updating the Transaction table, you can do the following:
-
-1. Temporary Table or In-Memory Collection: Use an in-memory collection to keep track of sbiOrderRefNumbers that meet the initial conditions. Then, use this collection to update both the Transaction and Order tables.
-
-
-2. Single Transaction Block: Execute the updates within a single transaction to ensure atomicity. First, select the sbiOrderRefNumbers that meet the conditions, then perform the updates on both tables.
-
-
-
-Approach:
-
-Repository Methods:
-
-You will need to fetch the relevant sbiOrderRefNumbers first and then use these to update the Transaction and Order tables.
-
-Fetch sbiOrderRefNumbers Meeting Initial Conditions:
-
-@Query("SELECT o.sbiOrderRefNumber FROM Orders o " +
-       "JOIN Transaction t ON o.sbiOrderRefNumber = t.sbiOrderRefNumber " +
-       "WHERE o.status = 'ATTEMPTED' " +
-       "AND t.transactionStatus = 'BOOKED' " +
-       "AND t.paymentStatus = 'PAYMENT_INITIATED_START'")
-List<String> findSbiOrderRefNumbersForUpdate();
-
-Update Transaction Table:
-
-@Modifying
-@Query("UPDATE Transaction t " +
-       "SET t.transactionStatus = 'FAILED' " +
-       "WHERE t.sbiOrderRefNumber IN :sbiOrderRefNumbers")
-void updateTransactionStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
-
-Update Order Table:
-
-@Modifying
-@Query("UPDATE Orders o " +
-       "SET o.status = 'FAILED' " +
-       "WHERE o.sbiOrderRefNumber IN :sbiOrderRefNumbers")
-void updateOrderStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
-
-Service Layer Method:
-
-@Service
-public class OrderTransactionService {
-
-    private final OrderRepository orderRepository;
-    private final TransactionRepository transactionRepository;
-
-    public OrderTransactionService(OrderRepository orderRepository, TransactionRepository transactionRepository) {
-        this.orderRepository = orderRepository;
-        this.transactionRepository = transactionRepository;
-    }
-
-    @Transactional
-    public void updateStatusForOrdersAndTransactions() {
-        // Fetch the sbiOrderRefNumbers that meet the initial conditions
-        List<String> sbiOrderRefNumbers = orderRepository.findSbiOrderRefNumbersForUpdate();
-
-        // Update transaction statuses
-        transactionRepository.updateTransactionStatusToFailed(sbiOrderRefNumbers);
-        
-        // Update order statuses
-        orderRepository.updateOrderStatusToFailed(sbiOrderRefNumbers);
-    }
-}
-
-Explanation:
-
-1. Fetch Matching Records: The method findSbiOrderRefNumbersForUpdate fetches the sbiOrderRefNumbers that meet the specified conditions in both the Order and Transaction tables.
-
-
-2. Update Transaction Table: Use the fetched sbiOrderRefNumbers to update the Transaction table.
-
-
-3. Update Order Table: After updating the Transaction table, update the Order table using the same sbiOrderRefNumbers.
-
-
-4. Transactional Integrity: Since both updates occur within a single transactional method, any failure in one part of the operation will roll back the entire transaction, ensuring data consistency.
-
-
-
-By fetching the sbiOrderRefNumbers that meet the conditions initially and then using this list to update both tables, you can handle the updates in a single transactional context.
-
+Exception in thread "main" com.vmware.gemfire.deployment.modules.internal.LauncherException: org.apache.geode.SystemConnectException: Problem starting up membership services
+    at gemfire//com.vmware.gemfire.deployment.modules.internal.Launcher.launch(Launcher.java:90)
+    at gemfire//com.vmware.gemfire.deployment.modules.internal.Launcher.main(Launcher.java:103)
+    at org.jboss.modules.Module.run(Module.java:353)
+    at org.jboss.modules.Module.run(Module.java:321)
+    at org.jboss.modules.Main.main(Main.java:604)
+    at com.vmware.gemfire.bootstrap.internal.Launcher.launch(Launcher.java:64)
+    at com.vmware.gemfire.bootstrap.LocatorLauncher.main(LocatorLauncher.java:31)
+Caused by: org.apache.geode.SystemConnectException: Problem starting up membership services
+    at gemfire//org.apache.geode.distributed.internal.DistributionImpl.start(DistributionImpl.java:258)
+    at gemfire//org.apache.geode.distributed.internal.DistributionImpl.createDistribution(DistributionImpl.java:292)
+    at gemfire//org.apache.geode.distributed.internal.ClusterDistributionManager.<init>(ClusterDistributionManager.java:491)
+    at gemfire//org.apache.geode.distributed.internal.ClusterDistributionManager.<init>(ClusterDistributionManager.java:438)
+    at gemfire//org.apache.geode.distributed.internal.ClusterDistributionManager.create(ClusterDistributionManager.java:335)
+    at gemfire//org.apache.geode.distributed.internal.InternalDistributedSystem$DefaultClusterDistributionManagerConstructor.create(InternalDistributedSystem.java:3001)
+    at gemfire//org.apache.geode.distributed.internal.InternalDistributedSystem.initialize(InternalDistributedSystem.java:753)
+    at gemfire//org.apache.geode.distributed.internal.InternalDistributedSystem$Builder.build(InternalDistributedSystem.java:3055)
+    at gemfire//org.apache.geode.distributed.internal.InternalDistributedSystem.connectInternal(InternalDistributedSystem.java:289)
+    at gemfire//org.apache.geode.distributed.internal.InternalLocator.startDistributedSystem(InternalLocator.java:747)
+    at gemfire//org.apache.geode.distributed.internal.InternalLocator.startLocator(InternalLocator.java:411)
+    at gemfire//org.apache.geode.distributed.LocatorLauncher.start(LocatorLauncher.java:786)
+    at gemfire//org.apache.geode.distributed.LocatorLauncher.run(LocatorLauncher.java:692)
+    at gemfire//org.apache.geode.distributed.LocatorLauncher.main(LocatorLauncher.java:229)
+    at gemfire//com.vmware.gemfire.deployment.modules.internal.Launcher.invokeMainClass(Launcher.java:99)
+    at gemfire//com.vmware.gemfire.deployment.modules.internal.Launcher.launch(Launcher.java:88)
+    ... 6 more
+Caused by: org.apache.geode.distributed.internal.membership.api.MemberStartupException: Unable to bind to port in range [41000,61000]
+    at gemfire//org.apache.geode.distributed.internal.membership.gms.messenger.MultiprotocolMessenger.start(MultiprotocolMessenger.java:172)
+    at gemfire//org.apache.geode.distributed.internal.membership.gms.Services.start(Services.java:260)
+    at gemfire//org.apache.geode.distributed.internal.membership.gms.GMSMembership.start(GMSMembership.java:1620)
+    at gemfire//org.apache.geode.distributed.internal.DistributionImpl.start(DistributionImpl.java:243)
