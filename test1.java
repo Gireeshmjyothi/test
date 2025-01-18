@@ -1,6 +1,6 @@
-start locator --name=locator
-Starting a GemFire Locator in F:\Epay\GemFire_Local_Server\GemFire_Local_Server\vmware-gemfire-10.1.2_torun_gfsh\vmware-gemfire-10.1.2\bin\locator...
-The Locator process terminated unexpectedly with exit status 1. Please refer to the log file in F:\Epay\GemFire_Local_Server\GemFire_Local_Server\vmware-gemfire-10.1.2_torun_gfsh\vmware-gemfire-10.1.2\bin\locator for full details.
+gfsh>start locator --name=locator
+Starting a GemFire Locator in C:\Users\v1014352\Downloads\GemFire_Local_Server\GemFire_Local_Server\vmware-gemfire-10.1.2_torun_gfsh\vmware-gemfire-10.1.2\bin\locator...
+The Locator process terminated unexpectedly with exit status 1. Please refer to the log file in C:\Users\v1014352\Downloads\GemFire_Local_Server\GemFire_Local_Server\vmware-gemfire-10.1.2_torun_gfsh\vmware-gemfire-10.1.2\bin\locator for full details.
 
 Exception in thread "main" com.vmware.gemfire.deployment.modules.internal.LauncherException: org.apache.geode.SystemConnectException: Problem starting up membership services
     at gemfire//com.vmware.gemfire.deployment.modules.internal.Launcher.launch(Launcher.java:90)
@@ -33,3 +33,4 @@ Caused by: org.apache.geode.distributed.internal.membership.api.MemberStartupExc
     at gemfire//org.apache.geode.distributed.internal.membership.gms.Services.start(Services.java:260)
     at gemfire//org.apache.geode.distributed.internal.membership.gms.GMSMembership.start(GMSMembership.java:1620)
     at gemfire//org.apache.geode.distributed.internal.DistributionImpl.start(DistributionImpl.java:243)
+    ... 21 more
