@@ -16,3 +16,20 @@ void updateTransactionStatusToFailed(@Param("sbiOrderRefNumbers") List<String> s
        "AND EXISTS (SELECT 1 FROM Transaction t WHERE t.sbiOrderRefNumber = o.sbiOrderRefNumber " +
        "AND t.transactionStatus = 'BOOKED' AND t.paymentStatus = 'PAYMENT_INITIATED_START')")
 void updateOrderStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrderRefNumbers);
+
+
+
+@Scheduled(cron = "${scheduler.cron.expression.transaction}")
+    @SchedulerLock(name = "updateStatusOfOrderAndTransaction", lockAtLeastFor = "${scheduler.lockAtLeastFor.transaction}", lockAtMostFor = "${scheduler.lockAtMostFor.transaction}")
+    public void updateStatusOfOrderAndTransaction() {
+        logger.info("Fetching scheduler time.");
+        //TODO-Need more clarity on this, currently using current time to get expired token list.
+//        SchedulerDto schedulerDto = schedulerDao.findSchedulerByName("updateStatusOfOrderAndTransaction");
+        Long currentTimeStamp = Instant.now().toEpochMilli();
+        logger.info("Current Time : {}", currentTimeStamp);
+
+        List<TokenAndOrderDto> tokenAndOrderDto = tokenRepository.findTokensByTypeExpiryAndOrderStatus(TokenType.TRANSACTION, currentTimeStamp);
+        List<MerchantDVPDto> merchantDVPFlagList = adminServicesClient.getMerchantDVPFlag(tokenAndOrderDto.stream().map(TokenAndOrderDto::getMerchantId).toList());
+        tokenAndOrderDto = getFilteredData(merchantDVPFlagList, tokenAndOrderDto);
+        transactionDao.updateStatusOfOrderAndTransaction(tokenAndOrderDto);
+    }
