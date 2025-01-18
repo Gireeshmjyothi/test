@@ -33,3 +33,22 @@ void updateOrderStatusToFailed(@Param("sbiOrderRefNumbers") List<String> sbiOrde
         tokenAndOrderDto = getFilteredData(merchantDVPFlagList, tokenAndOrderDto);
         transactionDao.updateStatusOfOrderAndTransaction(tokenAndOrderDto);
     }
+
+@Scheduled(cron = "${scheduler.cron.expression.transaction}")
+@SchedulerLock(name = "updateStatusOfOrderAndTransaction", lockAtLeastFor = "${scheduler.lockAtLeastFor.transaction}", lockAtMostFor = "${scheduler.lockAtMostFor.transaction}")
+public void updateStatusOfOrderAndTransaction() {
+    logger.info("Fetching scheduler time.");
+
+    // Fetch the last lock_until time from ShedLock table
+    LocalDateTime lastLockUntilTime = schedulerDao.findLockUntilTime("updateStatusOfOrderAndTransaction");
+    Long currentTimeStamp = Instant.now().toEpochMilli();
+    logger.info("Current Time : {}", currentTimeStamp);
+
+    // Fetch data that needs processing since the last lock_until time
+    List<TokenAndOrderDto> tokenAndOrderDto = tokenRepository.findTokensByTypeExpiryAndOrderStatusSince(TokenType.TRANSACTION, lastLockUntilTime);
+    List<MerchantDVPDto> merchantDVPFlagList = adminServicesClient.getMerchantDVPFlag(tokenAndOrderDto.stream().map(TokenAndOrderDto::getMerchantId).toList());
+    tokenAndOrderDto = getFilteredData(merchantDVPFlagList, tokenAndOrderDto);
+    transactionDao.updateStatusOfOrderAndTransaction(tokenAndOrderDto);
+
+    logger.info("Status update completed.");
+}
