@@ -8,3 +8,20 @@ org.springframework.beans.factory.NoUniqueBeanDefinitionException: No qualifying
 @EnableGemfireRepositories(basePackages = CACHE_REPOSITORIES )
 public class GemFireConfiguration  {
 }
+
+
+@Configuration
+public class GeodeConfig {
+    @Bean
+    public PdxSerializer pdxSerializer(){
+        return new ReflectionBasedAutoSerializer("com.epay.admin.*");
+    }
+
+    @Bean(name = "customClientCache")
+    public ClientCacheFactoryBean clientCacheFactoryBean(){
+        ClientCacheFactoryBean cacheFactoryBean = new ClientCacheFactoryBean();
+        cacheFactoryBean.setPdxSerializer(pdxSerializer());
+        cacheFactoryBean.setPdxReadSerialized(true);
+        return  cacheFactoryBean;
+    }
+}
