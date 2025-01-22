@@ -25,3 +25,5 @@ public class GeodeConfig {
         return  cacheFactoryBean;
     }
 }
+
+PDX[10247791,com.epay.admin.entity.cache.MerchantPayModeDownTimeCacheEntity]{id=76}
