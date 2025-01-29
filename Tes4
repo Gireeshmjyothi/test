@@ -1,323 +1,43 @@
-package com.epay.transaction.model.request;
-
-import lombok.*;
-
-import java.math.BigDecimal;
-
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-@Builder
-public class PaymentPushStatusVerificationRequest {
-    private String orderRefNumber;
-    private String sbiOrderRefNumber;
-    @NonNull
-    private String atrnNumber;
-    private BigDecimal orderAmount;
-}
-
-package com.epay.transaction.controller;
-
-import com.epay.transaction.model.request.PaymentPushStatusVerificationRequest;
-import com.epay.transaction.model.response.PaymentPushStatusVerificationResponse;
-import com.epay.transaction.model.response.TransactionResponse;
-import com.epay.transaction.service.PaymentPushStatusVerificationService;
-import com.sbi.epay.logging.utility.LoggerFactoryUtility;
-import com.sbi.epay.logging.utility.LoggerUtility;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-
-import org.springframework.web.bind.annotation.RestController;
-
-@RestController
-@Validated
-@RequiredArgsConstructor
-public class PaymentPushStatusVerificationController {
-
-    LoggerUtility logger = LoggerFactoryUtility.getLogger(CustomerController.class);
-
-    private final PaymentPushStatusVerificationService paymentPushStatusVerificationService;
-
-    @PostMapping
-    public TransactionResponse<PaymentPushStatusVerificationResponse> getPaymentPushStatusVerification(@Valid  @RequestBody PaymentPushStatusVerificationRequest paymentPushStatusVerificationRequest){
-        logger.info("Payment Push Status Verification Is Called :  PaymentPushStatusVerificationRequest {}", paymentPushStatusVerificationRequest);
-        return paymentPushStatusVerificationService.getPaymentPushStatusVerification(paymentPushStatusVerificationRequest);
-    }
-}
-
-
-package com.epay.transaction.service;
-
-import com.epay.transaction.controller.CustomerController;
-import com.epay.transaction.dao.TransactionOrderDao;
-import com.epay.transaction.model.request.PaymentPushStatusVerificationRequest;
-import com.epay.transaction.model.response.PaymentPushStatusVerificationResponse;
-import com.epay.transaction.model.response.TransactionResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sbi.epay.logging.utility.LoggerFactoryUtility;
-import com.sbi.epay.logging.utility.LoggerUtility;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
-import java.util.List;
-
-@Service
-@RequiredArgsConstructor
-public class PaymentPushStatusVerificationService {
-
-    LoggerUtility logger = LoggerFactoryUtility.getLogger(CustomerController.class);
-
-    private final TransactionOrderDao transactionOrderDao;
-    private final ObjectMapper objectMapper;
-
-
-    public TransactionResponse<PaymentPushStatusVerificationResponse> getPaymentPushStatusVerification(PaymentPushStatusVerificationRequest paymentPushStatusVerificationRequest) {
-        logger.info("Validating Request Body");
-
-        List<Object[]> results = transactionOrderDao.findTransactionOrder(paymentPushStatusVerificationRequest.getAtrnNumber(),
-                paymentPushStatusVerificationRequest.getOrderRefNumber(),
-                paymentPushStatusVerificationRequest.getSbiOrderRefNumber(),
-                paymentPushStatusVerificationRequest.getOrderAmount());
-
-        return TransactionResponse.<PaymentPushStatusVerificationResponse>builder()
-                .build();
-    }
-}
-
-
-package com.epay.transaction.repository;
-
-import com.epay.transaction.entity.Transaction;
-import com.epay.transaction.util.enums.TransactionStatus;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-
-/**
- * Class Name:PaymentIntiation
- * *
- * Description:
- * *
- * Author:V1014352(Ranjan Kumar)
- * <p>
- * Copyright (c) 2024 [State Bank of INdia]
- * All right reserved
- * *
- * Version:1.0
- */
-
-@Repository
-public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
-
-    // Corrected query method: 'status' instead of 'transactionStatus'
-    Optional<Transaction> findBySbiOrderRefNumberAndStatus(String sbiOrderRefNumber, TransactionStatus status);
-
-    @Query(value = """
-            SELECT t, o
-            FROM Transaction t 
-            LEFT JOIN Orders o 
-            ON t.orderRefNum = o.orderRefNumber
-            WHERE t.atrnNum = :atrnNum
-            AND (:orderRefNum IS NULL OR t.orderRefNum = :orderRefNum)
-            AND (:sbiOrderRefNum IS NULL OR t.sbiOrderRefNum = :sbiOrderRefNum)
-            AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
-            """, nativeQuery = true)
-    Optional<List<Object[]>> fetchTransactionAndOrderData(
-            @Param("atrnNum") String atrnNum,
-            @Param("orderRefNum") String orderRefNum,
-            @Param("sbiOrderRefNum") String sbiOrderRefNum,
-            @Param("orderAmount") BigDecimal orderAmount);
-
-}
-
-package com.epay.transaction.entity;
-
-import com.epay.transaction.util.enums.*;
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.UUID;
-
-/**
- * Class Name:Transaction
- * *
- * Description:
- * *
- * Author:V1014352(Ranjan Kumar)
- * <p>
- * Copyright (c) 2024 [State Bank of INdia]
- * All right reserved
- * *
- * Version:1.0
- */
-@Data
-@Entity
-@Table(name = "TRANSACTION")
-public class Transaction {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", nullable = false, updatable = false, unique = true)
-    private UUID id;
-
-    private String merchantId;
-
-    /* Order Information */
-    @Column(name = "order_ref_num")
-    private String orderRefNumber;
-    @Column(name = "sbi_order_ref_num")
-    private String sbiOrderRefNumber;
-
-    /* Payment Information */
-    private String payMode;
-    @Lob
-    private String paymentModeDetails;
-    @Column(name = "debit_amt")
-    private Double debitAmt;
-    @Column(name = "channel_bank")
-    private String channelBank;
-    private String cin;
-    @Lob
-    @Column(name = "push_response")
-    private String pushResponse;
-
-    /* Transaction Information */
-    @Column(name = "txn_request_count")
-    private Long txnRequestCount;
-    @Column(name = "fail_reason")
-    private String failReason;
-    @Column(name = "atrn_num")
-    private String atrnNumber;
-
-    /* Status Information */
-    @Enumerated(EnumType.STRING)
-    private TransactionStatus status;  // Correct field name
-    @Enumerated(EnumType.STRING)
-    private PaymentStatus paymentStatus;
-    @Enumerated(EnumType.STRING)
-    private SettelmentStatus settlementStatus;
-    @Enumerated(EnumType.STRING)
-    private RefundStatus refundStatus;
-    @Enumerated(EnumType.STRING)
-    private CancellationStatus cancellationStatus;
-
-    /* Audit Information */
-    @Column(name = "created_by")
-    private String createdBy;
-    @Column(name = "updated_by")
-    private String updatedBy;
-    @Column(name = "created_date")
-    private Long createdDate;
-    @Column(name = "updated_date")
-    private Long updatedDate;
-}
-
-package com.epay.transaction.entity;
-
-import com.epay.transaction.util.enums.OrderStatus;
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.springframework.data.annotation.CreatedDate;
-
-import java.math.BigDecimal;
-import java.util.UUID;
-
-@AllArgsConstructor
-@NoArgsConstructor
-@Getter
-@Setter
-@Entity
-@Table(name = "orders")
-public class Order {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "id", nullable = false, updatable = false, unique = true)
-    private UUID id;
-
-    @Column(name = "merchant_id")
-    private String mID;
-
-    @Column(name = "customer_id")
-    private String customerId;
-
-    @Column(name = "currency_code")
-    private String currencyCode;
-
-    @Column(name = "order_amount")
-    private BigDecimal orderAmount;
-
-    @Column(name = "order_ref_number")
-    private String orderRefNumber;
-
-    @Column(name = "sbi_order_ref_number")
-    private String sbiOrderRefNumber;
-
-    @Enumerated(EnumType.STRING)
-    private OrderStatus status;
-
-    @Column(name = "other_details", columnDefinition = "CLOB")
-    private String otherDetails;
-    private Long expiry;
-
-    @Column(name = "multi_accounts", columnDefinition = "CLOB")
-    private String multiAccounts;
-
-    @Column(name = "payment_mode")
-    private String paymentMode;
-
-    @Column(name = "order_hash")
-    private String orderHash;
-
-    @Column(name = "created_by")
-    private String createdBy;
-
-    @Column(name = "updated_by")
-    private String updatedBy;
-
-    @CreatedDate
-    @Column(name = "created_date")
-    private Long createdDate;
-
-    @Column(name = "updated_date")
-    private Long updatedDate;
-
-    @Column(name = "return_url")
-    private String returnUrl;
-
-}
-
-package com.epay.transaction.model.response;
-
-import com.epay.transaction.dto.OrderDto;
-import com.epay.transaction.dto.TransactionDto;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-import java.util.List;
-
-@Data
-@AllArgsConstructor
-@NoArgsConstructor
-public class PaymentPushStatusVerificationResponse {
-    private OrderDto orderInfo;
-    private List<TransactionDto> paymentInfo;
-}
-
-
-
+DECLARE
+  v_url        VARCHAR2(4000) := 'https://jsonplaceholder.typicode.com/posts/1';
+  v_response   CLOB;
+  v_http_req   UTL_HTTP.req;
+  v_http_resp  UTL_HTTP.resp;
+  v_buffer     VARCHAR2(32767);
+  v_json       JSON_OBJECT_T;
+  v_title      VARCHAR2(4000);
+  v_body       CLOB;
+BEGIN
+  -- Open HTTP request
+  v_http_req := UTL_HTTP.begin_request(v_url, 'GET');
+
+  -- Get HTTP response
+  v_http_resp := UTL_HTTP.get_response(v_http_req);
+  
+  -- Read response line by line
+  LOOP
+    UTL_HTTP.read_text(v_http_resp, v_buffer, 32767);
+    v_response := v_response || v_buffer;
+  END LOOP;
+
+  -- Close HTTP response
+  UTL_HTTP.end_response(v_http_resp);
+
+  -- Convert CLOB to JSON
+  v_json := JSON_OBJECT_T.PARSE(v_response);
+  
+  -- Extract values
+  v_title := v_json.get_string('title');
+  v_body  := v_json.get_string('body');
+
+  -- Print values
+  DBMS_OUTPUT.PUT_LINE('Title: ' || v_title);
+  DBMS_OUTPUT.PUT_LINE('Body: ' || v_body);
+
+EXCEPTION
+  WHEN UTL_HTTP.end_of_body THEN
+    UTL_HTTP.end_response(v_http_resp);
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/
