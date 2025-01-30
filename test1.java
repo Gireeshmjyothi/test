@@ -1,83 +1,58 @@
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
+@Mapper(componentModel = "spring")
+public interface PaymentVerificationMapper {
 
-public class GenericHashUtil {
+    PaymentVerificationMapper INSTANCE = Mappers.getMapper(PaymentVerificationMapper.class);
 
-    /**
-     * Generates a hash for any key (single or composite).
-     *
-     * @param key the key object (single value or composite object)
-     * @param <T> the type of the key
-     * @return the generated hash as a String
-     * @throws NoSuchAlgorithmException if the hashing algorithm is unavailable
-     */
-    public static <T> String generateHash(T key) throws NoSuchAlgorithmException {
-        if (key == null) {
-            throw new IllegalArgumentException("Key cannot be null");
-        }
+    // Map Order to OrderInfoDto
+    @Mapping(source = "sbiOrderRefNumber", target = "sbiOrderId", defaultValue = "")
+    @Mapping(source = "orderRefNumber", target = "merchantOrderNumber", defaultValue = "")
+    @Mapping(source = "status", target = "orderStatus", defaultValue = "")
+    @Mapping(source = "currencyCode", target = "currency", defaultValue = "")
+    OrderInfoDto orderToOrderInfoDto(Order order);
 
-        // Convert the key to a concatenated string representation
-        String data = key instanceof String || isPrimitiveOrWrapper(key)
-                ? key.toString() // Single key
-                : getCompositeKeyString(key); // Composite key
+    // Map Transaction to PaymentVerificationDto
+    @Mapping(source = "atrnNumber", target = "atrn", defaultValue = "")
+    @Mapping(source = "orderAmount", target = "orderAmount", defaultValue = "0")
+    @Mapping(source = "debitAmount", target = "totalAmount", defaultValue = "0")
+    @Mapping(source = "transactionStatus", target = "transactionStatus", defaultValue = "")
+    @Mapping(source = "payMode", target = "payMode", defaultValue = "")
+    @Mapping(source = "channelBank", target = "bankName", defaultValue = "")
+    @Mapping(source = "bankReferenceNumber", target = "bankTxnNumber", defaultValue = "")
+    @Mapping(source = "payProcId", target = "processor", defaultValue = "")
+    @Mapping(source = "createdDate", target = "transactionTime", defaultValue = "0")
+    @Mapping(source = "cin", target = "CIN", defaultValue = "")
+    PaymentVerificationDto transactionToPaymentVerificationDto(Transaction transaction);
+}
 
-        // Generate the hash using SHA-256
-        MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-        byte[] hashBytes = messageDigest.digest(data.getBytes(StandardCharsets.UTF_8));
+@Service
+public class PaymentVerificationService {
 
-        // Convert bytes to a hexadecimal string
-        return bytesToHex(hashBytes);
+    private final PaymentVerificationMapper paymentVerificationMapper;
+
+    public PaymentVerificationService(PaymentVerificationMapper paymentVerificationMapper) {
+        this.paymentVerificationMapper = paymentVerificationMapper;
     }
 
-    /**
-     * Checks if the key is a primitive or wrapper type (e.g., Integer, Double, Boolean).
-     *
-     * @param key the key object
-     * @return true if the key is a primitive or wrapper type, false otherwise
-     */
-    private static boolean isPrimitiveOrWrapper(Object key) {
-        return key instanceof Number || key instanceof Boolean || key instanceof Character;
-    }
+    public PaymentVerificationResponse buildPaymentVerificationResponse(List<Object[]> transactionOrderList) {
+        logger.info("Mapping Order data.");
 
-    /**
-     * Converts a composite key object into a concatenated string representation by combining its fields.
-     *
-     * @param key the composite key object
-     * @return a concatenated string of the object's field values
-     */
-    private static String getCompositeKeyString(Object key) {
-        StringBuilder data = new StringBuilder();
-        Arrays.stream(key.getClass().getDeclaredFields())
-                .sorted((f1, f2) -> f1.getName().compareTo(f2.getName())) // Sort fields for consistent hash
-                .forEach(field -> {
-                    try {
-                        field.setAccessible(true); // Allow access to private fields
-                        Object value = field.get(key); // Get the field value
-                        if (value != null) {
-                            data.append(value).append("|"); // Append the value with a delimiter
-                        }
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException("Error accessing key fields", e);
-                    }
-                });
-        return data.toString();
-    }
+        // Retrieve the first order data and map to OrderInfoDto using MapStruct
+        Object[] firstRecord = transactionOrderList.get(0);
+        Order firstOrder = (Order) firstRecord[1];
+        OrderInfoDto orderDto = paymentVerificationMapper.orderToOrderInfoDto(firstOrder);
 
-    /**
-     * Converts an array of bytes into a hexadecimal string.
-     *
-     * @param bytes the byte array
-     * @return the hexadecimal string representation
-     */
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : bytes) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) hexString.append('0');
-            hexString.append(hex);
-        }
-        return hexString.toString();
+        logger.info("Mapping Transaction data.");
+        // Map transactions to PaymentVerificationDto using MapStruct
+        List<PaymentVerificationDto> transactionsDTOs = transactionOrderList.stream()
+                .map(record -> paymentVerificationMapper.transactionToPaymentVerificationDto((Transaction) record[0]))
+                .collect(Collectors.toList());
+
+        logger.info("Transaction and Order data mapped.");
+        // Build and return the response
+        return PaymentVerificationResponse.builder()
+                .paymentInfo(transactionsDTOs)
+                .orderInfo(orderDto)
+                .build();
     }
 }
+
