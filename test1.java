@@ -1,39 +1,40 @@
 <!DOCTYPE html>
-
-SBIePAY_ATRN Booked Customer
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SBIePAY ATRN Booked Customer</title>
     <style>
         body {
-            font: 12px/18px "Trebuchet MS";
+            font-family: "Trebuchet MS", sans-serif;
+            font-size: 12px;
+            line-height: 18px;
         }
     </style>
 </head>
 <body>
-<br/>
-Dear Customer,
-<br/></br>
-You have booked an order on {Merchant Name (Brand Name)} with the below details:
-<br/><br/>
-&#45;&nbsp;Merchant Website: {Merchant URL}
-<br/>
-&#45;&nbsp;Merchant Order Number: {Merchant Order ID}
-<br/>
-&#45;&nbsp;SBIePay transaction reference number: {ATRN}
-<br/>
-&#45;&nbsp;Transaction booking date: {Txn Date}
-<br/>
-&#45;&nbsp;Transaction amount: {Posting Amount}
-<br/>
-&#45;&nbsp;Transaction status: {Status_Description}
-<br/><br/>
-For any further assistance, please contact your merchant.
-<br/><br/>
-Regards
-<br/>
-SBIePay Team
-<br/><br/>
-<b>Note - This is an auto generated e mail and you need not reply to this.</b>
+    <p>Dear Customer,</p>
+
+    <p>
+        You have booked an order on <b>{Merchant Name (Brand Name)}</b> with the following details:
+    </p>
+
+    <ul>
+        <li>Merchant Website: <b>{Merchant URL}</b></li>
+        <li>Merchant Order Number: <b>{Merchant Order ID}</b></li>
+        <li>SBIePay Transaction Reference Number: <b>{ATRN}</b></li>
+        <li>Transaction Booking Date: <b>{Txn Date}</b></li>
+        <li>Transaction Amount: <b>{Posting Amount}</b></li>
+        <li>Transaction Status: <b>{Status_Description}</b></li>
+    </ul>
+
+    <p>
+        For any further assistance, please contact your merchant.
+    </p>
+
+    <p>Regards,</p>
+    <p><b>SBIePay Team</b></p>
+
+    <p><b>Note:</b> This is an auto-generated email, and you do not need to reply to this.</p>
 </body>
-</html>
 </html>
