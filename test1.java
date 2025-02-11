@@ -1,48 +1,14 @@
-Map<String, String> errorDetails = new HashMap<>();
-try {
-    HttpStatusCode status = getWebClient().post()
-            .uri(smsBasePath + smsURL)
-            .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-            .header(HttpHeaders.AUTHORIZATION, "Basic " + createBasicAuthHeader(smsUserName, smsPassword))
-            .bodyValue(requestBody)
-            .retrieve()
-            .onStatus(HttpStatusCode::isError, response -> response.bodyToMono(String.class)
-                    .flatMap(errorBody -> {
-                        logger.error("Error response from SMS API: {} for request: {}", errorBody, smsDto);
-                        parseErrorResponse(errorBody, errorDetails);
-                        return Mono.error(new NotificationException(
-                                response.statusCode().toString(),
-                                "Error during SMS request: " + errorDetails.getOrDefault("error_desc", "Unknown error")
-                        ));
-                    })
-            )
-            .toBodilessEntity()
-            .doOnSuccess(response -> {
-                logger.info("SMS API response status: {}", response.getStatusCode());
-            })
-            .doOnError(error -> {
-                logger.error("Error occurred while calling SMS API: {}", error.getMessage(), error);
-            })
-            .map(ResponseEntity::getStatusCode)
-            .block();
-
-    if (status != null && status.is2xxSuccessful()) {
-        logger.debug("Successful SMS notification for smsData: {}", smsDto);
-        return true;
-    } else {
-        logger.error("Failed SMS notification with status: {} for smsData: {}", status, smsDto);
-        throw new NotificationException(NotificationConstant.FAILURE_CODE, 
-                MessageFormat.format(NotificationConstant.FAILURE_MSG, "SMS"));
-    }
-} catch (Exception e) {
-    logger.error("Error in SMS notification: {} for smsData: {}", e.getMessage(), smsDto, e);
-    throw new NotificationException(NotificationConstant.FAILURE_CODE, 
-            MessageFormat.format(NotificationConstant.FAILURE_MSG, "SMS"));
-}
-
-
-private void parseErrorResponse(String errorBody, Map<String, String> errorDetails) {
-    Arrays.stream(errorBody.split("&"))
-            .map(pair -> pair.split("=", 2)) // Limit split to 2 to prevent ArrayIndexOutOfBounds
-            .forEach(pair -> errorDetails.put(pair[0], pair.length > 1 ? pair[1] : ""));
-}
+Caused by: java.lang.IllegalStateException: Failed to introspect Class [com.sbi.epay.logging.utility.LoggingInterceptor] from ClassLoader [jdk.internal.loader.ClassLoaders$AppClassLoader@5a07e868]
+	at org.springframework.util.ReflectionUtils.getDeclaredMethods(ReflectionUtils.java:483)
+	at org.springframework.util.ReflectionUtils.doWithLocalMethods(ReflectionUtils.java:320)
+	at org.springframework.beans.factory.annotation.AutowiredAnnotationBeanPostProcessor.checkLookupMethods(AutowiredAnnotationBeanPostProcessor.java:476)
+	... 33 common frames omitted
+Caused by: java.lang.NoClassDefFoundError: javax/servlet/http/HttpServletRequest
+	at java.base/java.lang.Class.getDeclaredMethods0(Native Method)
+	at java.base/java.lang.Class.privateGetDeclaredMethods(Class.java:3578)
+	at java.base/java.lang.Class.getDeclaredMethods(Class.java:2676)
+	at org.springframework.util.ReflectionUtils.getDeclaredMethods(ReflectionUtils.java:465)
+	... 35 common frames omitted
+Caused by: java.lang.ClassNotFoundException: javax.servlet.http.HttpServletRequest
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
