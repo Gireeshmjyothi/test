@@ -25,7 +25,7 @@ import java.util.*;
 @Service
 @RequiredArgsConstructor
 public class PaymentNotificationService {
-    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+    private static final LoggerUtility LOGGER = LoggerFactoryUtility.getLogger(PaymentNotificationService.class);
     private final NotificationDao notificationDao;
     private final AdminServiceClient adminServiceClient;
     private final EmailNotificationProducer emailNotificationProducer;
@@ -37,60 +37,79 @@ public class PaymentNotificationService {
     public <T> String publishPaymentNotification(T dto, Class<T> type, NotificationTemplateType notificationTemplateType, RequestType requestType) {
         MerchantNotificationViewDto merchantNotificationViewDto;
         CustomerDto customerDto;
-        
+
         if (type.isAssignableFrom(OrderDto.class)) {
             OrderDto orderDto = (OrderDto) dto;
             merchantNotificationViewDto = adminServiceClient.getMerchantNotification(orderDto.getMId());
             customerDto = customerDao.getCustomerByCustomerId(orderDto.getCustomerId());
-            sendNotification(merchantNotificationViewDto, customerDto, orderDto, notificationTemplateType, requestType);
         } else if (type.isAssignableFrom(TransactionDto.class)) {
             TransactionDto transactionDto = (TransactionDto) dto;
             merchantNotificationViewDto = adminServiceClient.getMerchantNotification(transactionDto.getMerchantId());
             customerDto = orderDao.getCustomerBySbiOrderRefNumber(transactionDto.getSbiOrderRefNumber());
-            sendNotification(merchantNotificationViewDto, customerDto, transactionDto, notificationTemplateType, requestType);
         } else {
-            throw new PaymentException(ErrorConstants.NOT_FOUND_ERROR_CODE, 
-                MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Invalid class type"));
+            throw new PaymentException(ErrorConstants.NOT_FOUND_ERROR_CODE, MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "This given Class type"));
         }
+
+        sendNotification(merchantNotificationViewDto, customerDto, dto, notificationTemplateType, requestType);
         return "Notification processed successfully.";
     }
 
-    private <T> void sendNotification(MerchantNotificationViewDto merchantNotificationViewDto, CustomerDto customerDto, T object, NotificationTemplateType notificationTemplateType, RequestType requestType) {
-        Optional.ofNullable(merchantNotificationViewDto).ifPresent(merchant -> {
-            Optional.ofNullable(customerDto).ifPresent(customer -> {
-                if ("Y".equalsIgnoreCase(merchant.getEmailAlertCustomer())) {
-                    sendEmailNotification(merchant, customer, object, notificationTemplateType, requestType, customer.getEmail());
-                }
-                if ("Y".equalsIgnoreCase(merchant.getEmailAlertMerchant())) {
-                    sendEmailNotification(merchant, customer, object, notificationTemplateType, requestType, merchant.getCommunicationEmail());
-                }
-                if ("Y".equalsIgnoreCase(merchant.getSmsAlertCustomer())) {
-                    sendSmsNotification(object, notificationTemplateType, requestType, customer.getPhoneNumber());
-                }
-                if ("Y".equalsIgnoreCase(merchant.getSmsAlertMerchant())) {
-                    sendSmsNotification(object, notificationTemplateType, requestType, merchant.getMobileNo());
-                }
-            });
-        });
+    private <T> void sendNotification(MerchantNotificationViewDto merchantNotificationViewDto, CustomerDto customerDto, T object, NotificationTemplateType notificationTemplateType, RequestType type) {
+        if ("Y".equalsIgnoreCase(merchantNotificationViewDto.getEmailAlertCustomer())) {
+            emailNotificationProducer.publish(type.name(), "TransactionCustomerEmail", PaymentEmailDtoFactory.create(merchantNotificationViewDto, object, notificationTemplateType, type, customerDto.getEmail(), emailSmsConfig));
+        }
+        if ("Y".equalsIgnoreCase(merchantNotificationViewDto.getEmailAlertMerchant())) {
+            emailNotificationProducer.publish(type.name(), "TransactionMerchantEmail", PaymentEmailDtoFactory.create(merchantNotificationViewDto, object, notificationTemplateType, type, merchantNotificationViewDto.getCommunicationEmail(), emailSmsConfig));
+        }
+        if ("Y".equalsIgnoreCase(merchantNotificationViewDto.getSmsAlertCustomer())) {
+            smsNotificationProducer.publish(type.name(), "TransactionCustomerSms", PaymentSmsDtoFactory.create(object, notificationTemplateType, type, customerDto.getPhoneNumber()));
+        }
+        if ("Y".equalsIgnoreCase(merchantNotificationViewDto.getSmsAlertMerchant())) {
+            smsNotificationProducer.publish(type.name(), "TransactionMerchantSms", PaymentSmsDtoFactory.create(object, notificationTemplateType, type, merchantNotificationViewDto.getMobileNo()));
+        }
+    }
+}
+
+class PaymentEmailDtoFactory {
+    public static <T> PaymentEmailDto create(MerchantNotificationViewDto merchantNotificationViewDto, T object, NotificationTemplateType notificationTemplateType, RequestType requestType, String recipientEmail, EmailSmsConfig emailSmsConfig) {
+        NotificationDto notificationDto = NotificationDto.builder()
+                .merchantBrandName(merchantNotificationViewDto.getBrandName())
+                .gtwPostingAmount(object instanceof OrderDto ? ((OrderDto) object).getOrderAmount() : ((TransactionDto) object).getDebitAmt())
+                .currencyCode("INR")
+                .payMode(object instanceof OrderDto ? ((OrderDto) object).getPaymentMode() : ((TransactionDto) object).getPayMode())
+                .txnDate(new Date())
+                .build();
+
+        return PaymentEmailDto.builder()
+                .entityId(UUID.randomUUID())
+                .entityType(notificationTemplateType)
+                .requestType("Email")
+                .emailTemplate(EmailUtil.getEMailType(requestType))
+                .from(emailSmsConfig.getFrom())
+                .recipient(recipientEmail)
+                .bcc(emailSmsConfig.getRecipient())
+                .body(EmailUtil.generatedTransactionNotification(notificationDto))
+                .subject(EmailUtil.getEMailType(requestType).getSubjectName())
+                .build();
+    }
+}
+
+class PaymentSmsDtoFactory {
+    public static <T> PaymentSmsDto create(T object, NotificationTemplateType notificationTemplateType, RequestType requestType, String mobileNumber) {
+        return PaymentSmsDto.builder()
+                .entityId(UUID.randomUUID())
+                .entityType(notificationTemplateType)
+                .message(getMessage(requestType, object))
+                .mobileNumber(mobileNumber)
+                .requestType("SMS")
+                .build();
     }
 
-    private <T> void sendEmailNotification(MerchantNotificationViewDto merchant, CustomerDto customer, T object, NotificationTemplateType notificationTemplateType, RequestType requestType, String recipientEmail) {
-        PaymentEmailDto emailDto = PaymentEmailDtoFactory.create(merchant, object, notificationTemplateType, requestType, recipientEmail, emailSmsConfig);
-        emailNotificationProducer.publish(emailDto.getRequestType(), "TransactionCustomerEmail", emailDto);
-    }
-
-    private <T> void sendSmsNotification(T object, NotificationTemplateType notificationTemplateType, RequestType requestType, String mobileNumber) {
-        PaymentSmsDto smsDto = PaymentSmsDtoFactory.create(object, notificationTemplateType, requestType, mobileNumber);
-        smsNotificationProducer.publish(smsDto.getRequestType(), "TransactionCustomerSms", smsDto);
-    }
-
-    public void sendEmail(PaymentEmailDto paymentEmailDto) {
-        logger.info("Sending Email Notification");
-        notificationDao.sendEmailNotification(paymentEmailDto);
-    }
-
-    public void sendSms(PaymentSmsDto paymentSmsDto) {
-        logger.info("Sending SMS Notification");
-        notificationDao.sendSmsNotification(paymentSmsDto);
+    private static <T> String getMessage(RequestType requestType, T object) {
+        return MessageFormat.format(SmsUtil.getSMSTemplate(requestType),
+                "INR",
+                object instanceof OrderDto ? ((OrderDto) object).getOrderAmount() : ((TransactionDto) object).getDebitAmt(),
+                object instanceof OrderDto ? ((OrderDto) object).getPaymentMode() : ((TransactionDto) object).getPayMode(),
+                new Date());
     }
 }
