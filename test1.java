@@ -1,48 +1,45 @@
 @Service
-@RequiredArgsConstructor
-public class EventService {
+public class NotificationService {
 
-    private final WebClient webClient;
+    private final Map<String, Consumer<String>> notificationActions;
 
-    public EventResponseDTO fetchEventById(Long eventId) {
-        try {
-            return webClient.get()
-                    .uri("/events/{id}", eventId)
-                    .retrieve()
-                    .onStatus(HttpStatus::is4xxClientError, response -> {
-                        return response.bodyToMono(String.class)
-                                .flatMap(errorMessage -> Mono.error(new EventNotFoundException("Event not found: " + errorMessage)));
-                    })
-                    .onStatus(HttpStatus::is5xxServerError, response -> {
-                        return Mono.error(new ServerDownException("External service is unavailable"));
-                    })
-                    .bodyToMono(EventResponseDTO.class)
-                    .block(); // Blocking call to return DTO directly
-        } catch (WebClientResponseException.NotFound e) {
-            throw new EventNotFoundException("Event with ID " + eventId + " not found");
-        } catch (WebClientRequestException e) {
-            throw new ServerDownException("Failed to connect to external service");
-        } catch (Exception e) {
-            throw new RuntimeException("Unexpected error occurred", e);
-        }
+    public NotificationService() {
+        this.notificationActions = Map.of(
+            "smsMerchant", phone -> sendSms(phone, "Merchant SMS Notification"),
+            "smsCustomer", phone -> sendSms(phone, "Customer SMS Notification"),
+            "emailMerchant", email -> sendEmail(email, "Merchant Email Notification", "Your merchant email content here"),
+            "emailCustomer", email -> sendEmail(email, "Customer Email Notification", "Your customer email content here")
+        );
+    }
+
+    public void processNotification(NotificationDTO notificationDTO, String merchantEmail, String merchantPhone, String customerEmail, String customerPhone) {
+        Map<String, String> recipients = Map.of(
+            "smsMerchant", merchantPhone,
+            "smsCustomer", customerPhone,
+            "emailMerchant", merchantEmail,
+            "emailCustomer", customerEmail
+        );
+
+        Map<String, String> flags = Map.of(
+            "smsMerchant", notificationDTO.getSmsForMerchant(),
+            "smsCustomer", notificationDTO.getSmsForCustomer(),
+            "emailMerchant", notificationDTO.getEmailForMerchant(),
+            "emailCustomer", notificationDTO.getEmailForCustomer()
+        );
+
+        // Use Streams to process notifications dynamically
+        flags.forEach((key, value) -> {
+            if ("Y".equalsIgnoreCase(value)) {
+                notificationActions.get(key).accept(recipients.get(key));
+            }
+        });
+    }
+
+    private void sendSms(String phoneNumber, String message) {
+        System.out.println("Sending SMS to " + phoneNumber + ": " + message);
+    }
+
+    private void sendEmail(String email, String subject, String body) {
+        System.out.println("Sending Email to " + email + " - Subject: " + subject);
     }
 }
-@Service
-@RequiredArgsConstructor
-public class EventService {
-
-    private final WebClient webClient;
-
-    public EventResponseDTO fetchEventById(Long eventId) {
-        return webClient.get()
-                .uri("/events/{id}", eventId)
-                .retrieve()
-                .bodyToMono(EventResponseDTO.class)
-                .map(event -> {
-                    // Optimized mapping logic if needed
-                    event.setName(event.getName().toUpperCase()); // Example transformation
-                    return event;
-                })
-                .block(); // Blocking call to return DTO directly
-    }
-                     }
