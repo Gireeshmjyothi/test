@@ -27,5 +27,8 @@ public MerchantNotificationViewDto getMerchantNotification(String mId) {
     }
 
     logger.info("Successfully retrieved Merchant Notification for merchant ID: {}", mId);
-    return responseDto.getData().get(0); 
+    return responseDto.getData().getFirst().getFirst(); 
 }
+
+
+org.springframework.core.codec.DecodingException: JSON decoding error: Cannot deserialize value of type `java.util.ArrayList<com.epay.payment.dto.MerchantNotificationViewDto>` from Object value (token `JsonToken.START_OBJECT`)
