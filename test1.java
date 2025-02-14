@@ -24,3 +24,7 @@ has been successfully processed through SBIePay.
 </body>
 </html>
 
+public static Map<String, Object> generatedTransactionNotification(NotificationDto notificationDto) {
+        return Map.of("currencyCode", notificationDto.getCurrencyCode(), "getGtwPostingAmount", notificationDto.getGtwPostingAmount(), "getPayMode", notificationDto.getPayMode(), "txnTime", notificationDto.getTxnDate());
+    }
+
