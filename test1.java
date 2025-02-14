@@ -113,3 +113,47 @@ class PaymentSmsDtoFactory {
                 new Date());
     }
 }
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <style>
+        body {
+            font-family: "Trebuchet MS", sans-serif;
+            font-size: 12px;
+            line-height: 18px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <br/>
+    Dear Customer,
+    <br/><br/>
+    You have booked an order on <b th:text="${merchantBrandName}"></b> with the below details:
+    <br/><br/>
+    
+    &#45;&nbsp;Merchant Website: <b th:text="${merchantUrl}"></b>  
+    <br/>
+    &#45;&nbsp;Merchant Order Number: <b th:text="${merchantOrderId}"></b>  
+    <br/>
+    &#45;&nbsp;SBIePay Transaction Reference Number: <b th:text="${atrn}"></b>  
+    <br/>
+    &#45;&nbsp;Transaction Booking Date: <b th:text="${txnDate}"></b>  
+    <br/>
+    &#45;&nbsp;Transaction Amount: <b th:text="${currencyCode} + ' ' + ${gtwPostingAmount}"></b>  
+    <br/>
+    &#45;&nbsp;Transaction Status: <b th:text="${statusDescription}"></b>  
+    <br/><br/>
+
+    For any further assistance, please contact your merchant.
+    <br/><br/>
+
+    Regards,  
+    <br/>
+    <b>SBIePay Team</b>  
+    <br/><br/>
+
+    <b>Note - This is an auto-generated email, and you do not need to reply.</b>
+</body>
+</html>
