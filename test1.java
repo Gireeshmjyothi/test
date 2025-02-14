@@ -3,7 +3,7 @@ public MerchantNotificationViewDto getMerchantNotification(String mId) {
     
     URI uri = URI.create(getBaseUrl() + MessageFormat.format(MERCHANT_NOTIFICATION_ENDPOINT, mId));
 
-    ResponseDto<List<MerchantNotificationViewDto>> responseDto = getWebClient()
+    ResponseDto<MerchantNotificationViewDto> responseDto = getWebClient()
             .post()
             .uri(uri)
             .retrieve()
@@ -17,18 +17,15 @@ public MerchantNotificationViewDto getMerchantNotification(String mId) {
                 return Mono.error(new PaymentException(ErrorConstants.EXTERNAL_SERVICE_ERROR_CODE, 
                     MessageFormat.format(ErrorConstants.EXTERNAL_SERVICE_ERROR_MESSAGE, "Admin Service")));
             })
-            .bodyToMono(new ParameterizedTypeReference<ResponseDto<List<MerchantNotificationViewDto>>>() {})
+            .bodyToMono(new ParameterizedTypeReference<ResponseDto<MerchantNotificationViewDto>>() {})
             .block();
 
-    if (responseDto == null || responseDto.getStatus().equals(PaymentConstants.FAILURE_RESPONSE_CODE) || responseDto.getData().isEmpty()) {
+    if (responseDto == null || responseDto.getStatus().equals(PaymentConstants.FAILURE_RESPONSE_CODE) || responseDto.getData() == null) {
         logger.error("Merchant Notification not found for merchant ID: {}", mId);
         throw new PaymentException(ErrorConstants.NOT_FOUND_ERROR_CODE, 
                 MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Merchant Notification"));
     }
 
     logger.info("Successfully retrieved Merchant Notification for merchant ID: {}", mId);
-    return responseDto.getData().getFirst().getFirst(); 
+    return responseDto.getData(); 
 }
-
-
-org.springframework.core.codec.DecodingException: JSON decoding error: Cannot deserialize value of type `java.util.ArrayList<com.epay.payment.dto.MerchantNotificationViewDto>` from Object value (token `JsonToken.START_OBJECT`)
