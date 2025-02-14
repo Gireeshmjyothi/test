@@ -1,31 +1,31 @@
 public MerchantNotificationViewDto getMerchantNotification(String mId) {
-        logger.info("Preparing Request to get merchant notification view.");
-        URI uri = URI.create(getBaseUrl() + MessageFormat.format(MERCHANT_NOTIFICATION_ENDPOINT, mId));
-       ResponseDto<MerchantNotificationViewDto> responseDto = getWebClient()
-                .post()
-                .uri(uri)
-                .retrieve()
-                .onStatus(HttpStatusCode::is5xxServerError, clientResponse -> Mono.error(new PaymentException(ErrorConstants.EXTERNAL_SERVICE_ERROR_CODE, MessageFormat.format(ErrorConstants.EXTERNAL_SERVICE_ERROR_MESSAGE, "Admin Service"))))
-                .bodyToMono(ResponseDto.class)
-                .block();
+    logger.info("Preparing request to get merchant notification view for merchant ID: {}", mId);
+    
+    URI uri = URI.create(getBaseUrl() + MessageFormat.format(MERCHANT_NOTIFICATION_ENDPOINT, mId));
 
-        if (responseDto.getStatus().equals(PaymentConstants.FAILURE_RESPONSE_CODE)) {
-            throw new PaymentException(ErrorConstants.NOT_FOUND_ERROR_CODE, MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Merchant Notification"));
-        }
+    ResponseDto<List<MerchantNotificationViewDto>> responseDto = getWebClient()
+            .post()
+            .uri(uri)
+            .retrieve()
+            .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> {
+                logger.error("Received 4xx error from Admin Service for merchant ID: {}", mId);
+                return Mono.error(new PaymentException(ErrorConstants.BAD_REQUEST_ERROR_CODE, 
+                    MessageFormat.format(ErrorConstants.BAD_REQUEST_ERROR_MESSAGE, "Admin Service")));
+            })
+            .onStatus(HttpStatusCode::is5xxServerError, clientResponse -> {
+                logger.error("Received 5xx error from Admin Service for merchant ID: {}", mId);
+                return Mono.error(new PaymentException(ErrorConstants.EXTERNAL_SERVICE_ERROR_CODE, 
+                    MessageFormat.format(ErrorConstants.EXTERNAL_SERVICE_ERROR_MESSAGE, "Admin Service")));
+            })
+            .bodyToMono(new ParameterizedTypeReference<ResponseDto<List<MerchantNotificationViewDto>>>() {})
+            .block();
 
-        Map<String, String> response = objectMapper.convertValue(responseDto.getData().getFirst(), Map.class);
-
-        return MerchantNotificationViewDto.builder()
-                .emailAlertMerchant(response.get("emailAlertMerchant"))
-                .emailAlertCustomer(response.get("emailAlertCustomer"))
-                .smsAlertMerchant(response.get("smsAlertMerchant"))
-                .smsAlertCustomer(response.get("smsAlertCustomer"))
-                .communicationEmail(response.get("communicationEmail"))
-                .merchPushResponseFlag(response.get("merchPushResponseFlag"))
-                .mobileNo(response.get("mobileNo"))
-                .mId(response.get("mid"))
-                .brandName(response.get("brandName"))
-                .businessName(response.get("businessName"))
-                .build();
-
+    if (responseDto == null || responseDto.getStatus().equals(PaymentConstants.FAILURE_RESPONSE_CODE) || responseDto.getData().isEmpty()) {
+        logger.error("Merchant Notification not found for merchant ID: {}", mId);
+        throw new PaymentException(ErrorConstants.NOT_FOUND_ERROR_CODE, 
+                MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Merchant Notification"));
     }
+
+    logger.info("Successfully retrieved Merchant Notification for merchant ID: {}", mId);
+    return responseDto.getData().get(0); 
+}
