@@ -14,3 +14,15 @@ Optional<List<Object[]>> fetchTransactionAndOrderDetail(
         @Param("orderRefNumber") String orderRefNumber,
         @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
         @Param("orderAmount") BigDecimal orderAmount);
+
+
+
+@Modifying
+@Query(value = """
+        UPDATE Transaction t 
+        SET t.pushResponse = :newStatus
+        WHERE t.atrnNumber = :atrnNumber
+    """)
+int updatePushResponseStatus(
+        @Param("atrnNumber") String atrnNumber,
+        @Param("newStatus") String newStatus);
