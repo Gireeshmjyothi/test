@@ -32,12 +32,15 @@ public class PaymentService {
 
         return transactionDao.getTransactionAndOrderDetail(dto)
                 .map(this::buildPaymentVerificationResponse)
-                .filter(response -> response.getOrderInfo().getReturnUrl().equalsIgnoreCase(PushResponseStatus))
-                .map(response -> encryptAndSendToMerchant(dto, response))
-                .filter(Boolean::booleanValue)
-                .map(success -> updatePushVerificationStatus(dto.getAtrnNumber()))
+                .map(response -> {
+                    if (!response.getOrderInfo().getReturnUrl().equalsIgnoreCase(PushResponseStatus)) {
+                        logger.info("Return URL does not match PushResponseStatus. Skipping push verification.");
+                        return true;  // Returning true if the response does not match
+                    }
+                    return encryptAndSendToMerchant(dto, response) && updatePushVerificationStatus(dto.getAtrnNumber());
+                })
                 .orElseGet(() -> {
-                    logger.warn("Push verification process failed for ATRN: {}", dto.getAtrnNumber());
+                    logger.warn("Push verification process failed due to missing transaction data for ATRN: {}", dto.getAtrnNumber());
                     return false;
                 });
     }
