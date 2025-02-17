@@ -7,3 +7,11 @@
                 AND DBMS_LOB.SUBSTR(t.push_response, 4000) LIKE %:pushStatus%
             """, nativeQuery = true)
 Optional<List<Object[]>> fetchTransactionAndOrderDetail(@Param("atrnNumber") String atrnNumber, @Param("pushStatus") String pushStatus);
+
+@Modifying
+@Query(value = """
+                UPDATE Transaction t
+                SET t.pushResponse = :pushResponse
+                WHERE t.atrnNum = :atrnNum
+            """, nativeQuery = true)
+int updatePushResponse(@Param("atrnNum") String atrnNum, @Param("pushResponse") String pushResponse);
