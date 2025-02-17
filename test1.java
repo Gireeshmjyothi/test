@@ -1,66 +1,9 @@
-import com.fasterxml.jackson.core.JsonProcessingException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.Optional;
-
-@Service
-public class PaymentService {
-
-    private static final Logger logger = LoggerFactory.getLogger(PaymentService.class);
-    private final TransactionDao transactionDao;
-    private final KmsServiceClient kmsServiceClient;
-    private final EncryptionDecryptionUtil encryptionDecryptionUtil;
-    private final MerchantServiceClient merchantServiceClient;
-    private final ObjectMapper objectMapper;
-
-    public PaymentService(TransactionDao transactionDao, 
-                          KmsServiceClient kmsServiceClient,
-                          EncryptionDecryptionUtil encryptionDecryptionUtil, 
-                          MerchantServiceClient merchantServiceClient,
-                          ObjectMapper objectMapper) {
-        this.transactionDao = transactionDao;
-        this.kmsServiceClient = kmsServiceClient;
-        this.encryptionDecryptionUtil = encryptionDecryptionUtil;
-        this.merchantServiceClient = merchantServiceClient;
-        this.objectMapper = objectMapper;
-    }
-
-    public boolean processPaymentPushVerification(PaymentPushVerificationDto dto) throws JsonProcessingException {
-        logger.info("Starting payment push verification for ATRN: {}", dto.getAtrnNumber());
-
-        return transactionDao.getTransactionAndOrderDetail(dto)
-                .map(this::buildPaymentVerificationResponse)
-                .map(response -> {
-                    if (!response.getOrderInfo().getReturnUrl().equalsIgnoreCase(PushResponseStatus)) {
-                        logger.info("Return URL does not match PushResponseStatus. Skipping push verification.");
-                        return true;  // Returning true if the response does not match
-                    }
-                    return encryptAndSendToMerchant(dto, response) && updatePushVerificationStatus(dto.getAtrnNumber());
-                })
-                .orElseGet(() -> {
-                    logger.warn("Push verification process failed due to missing transaction data for ATRN: {}", dto.getAtrnNumber());
-                    return false;
-                });
-    }
-
-    private boolean encryptAndSendToMerchant(PaymentPushVerificationDto dto, PaymentVerificationResponse response) {
-        try {
-            logger.info("Fetching encryption key for Merchant ID: {}", dto.getMId());
-            EncryptionKeyDto encryptionKey = kmsServiceClient.getEncryptionKey(dto.getMId());
-            String encryptedData = encryptionDecryptionUtil.encryptRequest(objectMapper.writeValueAsString(response), encryptionKey);
-            logger.debug("Encrypted payment push data: {}", encryptedData);
-            return merchantServiceClient.postPaymentPushVerification(encryptedData);
-        } catch (Exception e) {
-            logger.error("Error encrypting or sending payment push verification: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean updatePushVerificationStatus(String atrnNumber) {
-        boolean isUpdated = transactionDao.updatePushVerificationStatus(atrnNumber, "Y") > 0;
-        logger.info("Push verification status update {} for ATRN: {}", isUpdated ? "successful" : "failed", atrnNumber);
-        return isUpdated;
-    }
-}
+Caused by: java.lang.IllegalStateException: No Acknowledgment available as an argument, the listener container must have a MANUAL AckMode to populate the Acknowledgment.
+	at org.springframework.kafka.listener.adapter.MessagingMessageListenerAdapter.checkAckArg(MessagingMessageListenerAdapter.java:441)
+	at org.springframework.kafka.listener.adapter.MessagingMessageListenerAdapter.invokeHandler(MessagingMessageListenerAdapter.java:427)
+	at org.springframework.kafka.listener.adapter.MessagingMessageListenerAdapter.invoke(MessagingMessageListenerAdapter.java:384)
+	at org.springframework.kafka.listener.adapter.RecordMessagingMessageListenerAdapter.onMessage(RecordMessagingMessageListenerAdapter.java:85)
+	at org.springframework.kafka.listener.adapter.RecordMessagingMessageListenerAdapter.onMessage(RecordMessagingMessageListenerAdapter.java:50)
+	at org.springframework.kafka.listener.KafkaMessageListenerContainer$ListenerConsumer.doInvokeOnMessage(KafkaMessageListenerContainer.java:2800)
+	... 13 common frames omitted
+Caused by: org.springframework.messaging.handler.annotation.support.MethodArgumentNotValidException: Could not resolve method parameter at index 1 in public void com.epay.payment.etl.listener.PaymentPushVerificationListener.paymentPushVerification(org.apache.kafka.clients.consumer.ConsumerRecord<java.lang.String, java.lang.String>,org.springframework.kafka.support.Acknowledgment): 1 error(s): [Error in object 'acknowledgment': codes []; arguments []; default message [Payload value must not be empty]] 
