@@ -1,28 +1,14 @@
-@Query(value = """
-                SELECT t, o
-                FROM Transaction t
-                INNER JOIN Order o
-                ON t.orderRefNumber = o.orderRefNumber
-                WHERE t.atrnNumber = :atrnNumber
-                AND t.pushResponse = 'N'
-                AND (:orderRefNumber IS NULL OR t.orderRefNumber = :orderRefNumber)
-                AND (:sbiOrderRefNumber IS NULL OR t.sbiOrderRefNumber = :sbiOrderRefNumber)
-                AND (:orderAmount IS NULL OR o.orderAmount = :orderAmount)
-            """)
-Optional<List<Object[]>> fetchTransactionAndOrderDetail(
-        @Param("atrnNumber") String atrnNumber,
-        @Param("orderRefNumber") String orderRefNumber,
-        @Param("sbiOrderRefNumber") String sbiOrderRefNumber,
-        @Param("orderAmount") BigDecimal orderAmount);
-
-
-
-@Modifying
-@Query(value = """
-        UPDATE Transaction t 
-        SET t.pushResponse = :newStatus
-        WHERE t.atrnNumber = :atrnNumber
-    """)
-int updatePushResponseStatus(
-        @Param("atrnNumber") String atrnNumber,
-        @Param("newStatus") String newStatus);
+spring.kafka.consumer.groupId=payment-consumers
+spring.kafka.consumer.enableAutoCommit=true
+spring.kafka.consumer.autoCommitInterval=100
+spring.kafka.consumer.sessionTimeoutMS=300000
+spring.kafka.consumer.requestTimeoutMS=420000
+spring.kafka.consumer.fetchMaxWaitMS=200
+spring.kafka.consumer.maxPollRecords=5
+spring.kafka.consumer.autoOffsetReset=latest
+spring.kafka.consumer.keyDeserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.valueDeserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.retryMaxAttempts=3
+spring.kafka.consumer.retryBackOffInitialIntervalMS=10000
+spring.kafka.consumer.retryBackOffMaxIntervalMS=30000
+spring.kafka.consumer.numberOfConsumers=1
