@@ -27,48 +27,37 @@ public class PaymentService {
         this.objectMapper = objectMapper;
     }
 
-    public boolean processPaymentPushVerification(PaymentPushVerificationDto paymentPushVerificationDto) throws JsonProcessingException {
-        logger.info("Starting payment push verification process for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
+    public boolean processPaymentPushVerification(PaymentPushVerificationDto dto) throws JsonProcessingException {
+        logger.info("Starting payment push verification for ATRN: {}", dto.getAtrnNumber());
 
-        Optional<List<Object[]>> transactionOptional = transactionDao.getTransactionAndOrderDetail(paymentPushVerificationDto);
+        return transactionDao.getTransactionAndOrderDetail(dto)
+                .map(this::buildPaymentVerificationResponse)
+                .filter(response -> response.getOrderInfo().getReturnUrl().equalsIgnoreCase(PushResponseStatus))
+                .map(response -> encryptAndSendToMerchant(dto, response))
+                .filter(Boolean::booleanValue)
+                .map(success -> updatePushVerificationStatus(dto.getAtrnNumber()))
+                .orElseGet(() -> {
+                    logger.warn("Push verification process failed for ATRN: {}", dto.getAtrnNumber());
+                    return false;
+                });
+    }
 
-        if (transactionOptional.isEmpty()) {
-            logger.error("Transaction data not found for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
+    private boolean encryptAndSendToMerchant(PaymentPushVerificationDto dto, PaymentVerificationResponse response) {
+        try {
+            logger.info("Fetching encryption key for Merchant ID: {}", dto.getMId());
+            EncryptionKeyDto encryptionKey = kmsServiceClient.getEncryptionKey(dto.getMId());
+            String encryptedData = encryptionDecryptionUtil.encryptRequest(objectMapper.writeValueAsString(response), encryptionKey);
+            logger.debug("Encrypted payment push data: {}", encryptedData);
+            return merchantServiceClient.postPaymentPushVerification(encryptedData);
+        } catch (Exception e) {
+            logger.error("Error encrypting or sending payment push verification: {}", e.getMessage());
             return false;
         }
+    }
 
-        logger.info("Transaction data found. Mapping order and payment info.");
-        PaymentVerificationResponse paymentVerificationResponse = buildPaymentVerificationResponse(transactionOptional.get());
-
-        if (!paymentVerificationResponse.getOrderInfo().getReturnUrl().equalsIgnoreCase(PushResponseStatus)) {
-            logger.warn("Return URL mismatch for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
-            return false;
-        }
-
-        logger.info("Fetching encryption key for Merchant ID: {}", paymentPushVerificationDto.getMId());
-        EncryptionKeyDto encryptionKeyDto = kmsServiceClient.getEncryptionKey(paymentPushVerificationDto.getMId());
-
-        String encryptedPaymentPushData = encryptionDecryptionUtil.encryptRequest(
-                objectMapper.writeValueAsString(paymentVerificationResponse), encryptionKeyDto);
-        logger.debug("Encrypted payment push data: {}", encryptedPaymentPushData);
-
-        logger.info("Sending encrypted payment push data to merchant service.");
-        boolean merchantPushResponseFlag = merchantServiceClient.postPaymentPushVerification(encryptedPaymentPushData);
-
-        if (!merchantPushResponseFlag) {
-            logger.error("Merchant push verification failed for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
-            return false;
-        }
-
-        logger.info("Merchant push verification successful. Updating push verification status.");
-        boolean updateStatus = transactionDao.updatePushVerificationStatus(paymentPushVerificationDto.getAtrnNumber(), "Y") > 0;
-
-        if (updateStatus) {
-            logger.info("Push verification status updated successfully for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
-        } else {
-            logger.warn("Failed to update push verification status for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
-        }
-
-        return updateStatus;
+    private boolean updatePushVerificationStatus(String atrnNumber) {
+        boolean isUpdated = transactionDao.updatePushVerificationStatus(atrnNumber, "Y") > 0;
+        logger.info("Push verification status update {} for ATRN: {}", isUpdated ? "successful" : "failed", atrnNumber);
+        return isUpdated;
     }
 }
