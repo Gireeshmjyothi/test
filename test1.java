@@ -21,3 +21,16 @@ Caused by: java.lang.IllegalArgumentException: org.hibernate.query.SemanticExcep
 	at org.springframework.data.jpa.repository.query.SimpleJpaQuery.validateQuery(SimpleJpaQuery.java:94)
 	... 90 common frames omitted
 Caused by: org.hibernate.query.SemanticException: Operand of 'like' is of type 'java.lang.Object' which is not a string (its JDBC type code is not string-like)
+
+
+
+	
+@Query(value = """
+                SELECT t, o
+                FROM Transaction t
+                INNER JOIN Order o
+                ON t.orderRefNumber = o.orderRefNumber
+                WHERE t.atrnNum = :atrnNumber
+                AND CAST(t.pushResponse AS TEXT) LIKE %:pushStatus%
+            """)
+Optional<List<Object[]>> fetchTransactionAndOrderDetail(@Param("atrnNumber") String atrnNumber, @Param("pushStatus") String pushStatus);
