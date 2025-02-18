@@ -22,3 +22,14 @@ int updatePushResponse(@Param("atrnNum") String atrnNum, @Param("pushResponse") 
        "AND t.pushResponse LIKE CONCAT('%', :pushStatus, '%')")
 List<Object[]> fetchTransactionAndOrderDetail(@Param("atrnNumber") String atrnNumber, 
                                                @Param("pushStatus") String pushStatus);
+
+
+@Modifying
+ @Query(value = """
+        UPDATE Transaction t
+        SET t.pushResponse = :pushStatus
+        WHERE t.atrnNum = :atrnNumber
+    """)
+ int updatePushResponseStatus(
+         @Param("atrnNumber") String atrnNumber,
+         @Param("pushStatus") String pushStatus);
