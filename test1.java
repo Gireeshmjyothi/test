@@ -1,68 +1,35 @@
-@KafkaListener(topics = "${spring.kafka.topic.payment.push.verification}", groupId = "payment-group")
-public void paymentPushVerification(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
-    log.debug("Push verification request received for key: {} and value: {}", consumerRecord.key(), consumerRecord.value());
-    String message = consumerRecord.value();
-    
-    try {
-        PaymentPushVerificationDto paymentPushVerificationDto = objectMapper.readValue(message, PaymentPushVerificationDto.class);
-        boolean processFlag = paymentPushVerificationService.processPaymentPushVerification(paymentPushVerificationDto);
-        
-        if (processFlag) {
-            acknowledgment.acknowledge();
-            log.info("Payment push notification message successfully processed and acknowledged for key: {}", consumerRecord.key());
-        } else {
-            // Send to retry topic with an exponential delay (if required)
-            kafkaTemplate.send("retry-topic", message);
-            log.warn("Processing failed, message sent to retry-topic for key: {}", consumerRecord.key());
-        }
-    } catch (JsonProcessingException e) {
-        log.error("JSON Parsing failed for key: {}, moving message to dead-letter-topic: {}", consumerRecord.key(), e.getMessage());
-        kafkaTemplate.send("dead-letter-topic", message);
-    } catch (PaymentException e) {
-        log.error("PaymentException occurred for key: {}, error: {}", consumerRecord.key(), e.getErrorMessage());
-    } catch (Exception e) {
-        log.error("Unexpected error for key: {}, moving message to dead-letter-topic", consumerRecord.key(), e);
-        kafkaTemplate.send("dead-letter-topic", message);
+public boolean processPaymentPushVerification(PaymentPushVerificationDto dto) throws JsonProcessingException {
+        logger.info("Starting payment push verification for ATRN: {}", dto.getAtrnNumber());
+        return transactionDao.getTransactionAndOrderDetail(dto)
+                .map(this::buildPaymentVerificationResponse)
+                .map(response -> {
+                    if (!response.getPaymentInfo().getPushStatus().equalsIgnoreCase(PushResponseStatus)) {
+                        logger.info("Push response does not match PushResponseStatus. Skipping push verification.");
+                        return true;
+                    }
+                    return encryptAndSendToMerchant(dto, response) && updatePushVerificationStatus(dto.getAtrnNumber());
+                })
+                .orElseGet(() -> {
+                    logger.warn("Push verification process failed due to missing transaction data for ATRN: {}", dto.getAtrnNumber());
+                    return false;
+                });
     }
-}
 
-@KafkaListener(topics = "retry-topic", groupId = "payment-group")
-public void retryListener(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
-    log.info("Retrying message from retry-topic for key: {}", consumerRecord.key());
-    String message = consumerRecord.value();
 
-    try {
-        PaymentPushVerificationDto paymentPushVerificationDto = objectMapper.readValue(message, PaymentPushVerificationDto.class);
-        boolean processFlag = paymentPushVerificationService.processPaymentPushVerification(paymentPushVerificationDto);
-        
-        if (processFlag) {
-            acknowledgment.acknowledge();
-            log.info("Message successfully processed from retry-topic for key: {}", consumerRecord.key());
-        } else {
-            log.warn("Retry failed, moving message to dead-letter-topic: {}", consumerRecord.key());
-            kafkaTemplate.send("dead-letter-topic", message);
-        }
-    } catch (Exception e) {
-        log.error("Retry attempt failed for key: {}, moving to dead-letter-topic", consumerRecord.key(), e);
-        kafkaTemplate.send("dead-letter-topic", message);
+private PaymentVerificationResponse buildPaymentVerificationResponse(List<Object[]> transactionOrderList) {
+        logger.info("Mapping Order data.");
+        // Retrieve the record from object[]
+        if(CollectionUtils.isEmpty(transactionOrderList)) ;
+
+        Object[] record = transactionOrderList.get(0);
+
+        PaymentVerificationDto paymentVerificationDto = paymentVerificationMapper.transactionToPaymentVerificationDto((Transaction) record[0]);
+        OrderInfoDto orderDto = paymentVerificationMapper.orderToOrderInfoDto((Order) record[1]);
+
+        logger.info("Transaction and Order data mapped.");
+        // Build and return the response
+        return PaymentVerificationResponse.builder()
+                .paymentInfo(paymentVerificationDto)
+                .orderInfo(orderDto)
+                .build();
     }
-}
-
-@KafkaListener(topics = "dead-letter-topic", groupId = "payment-group")
-public void deadLetterListener(ConsumerRecord<String, String> consumerRecord) {
-    log.error("Dead-letter message received, manual intervention needed: {}", consumerRecord.value());
-    // Store in DB, trigger an alert, or manually reprocess
-}
-
-
-@Component
-@RequiredArgsConstructor
-public class DeadLetterPushVerificationListener {
-    private final LoggerUtility log = LoggerFactoryUtility.getLogger(this.getClass());
-
-    @KafkaListener(topics = "dead-letter-topic", groupId = "${spring.kafka.consumer.groupId}")
-    public void deadLetterListener(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
-        log.error("Dead-letter message received, manual intervention needed: {}", consumerRecord.value());
-        acknowledgment.acknowledge();
-    }
-}
