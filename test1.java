@@ -53,3 +53,16 @@ public void deadLetterListener(ConsumerRecord<String, String> consumerRecord) {
     log.error("Dead-letter message received, manual intervention needed: {}", consumerRecord.value());
     // Store in DB, trigger an alert, or manually reprocess
 }
+
+
+@Component
+@RequiredArgsConstructor
+public class DeadLetterPushVerificationListener {
+    private final LoggerUtility log = LoggerFactoryUtility.getLogger(this.getClass());
+
+    @KafkaListener(topics = "dead-letter-topic", groupId = "${spring.kafka.consumer.groupId}")
+    public void deadLetterListener(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
+        log.error("Dead-letter message received, manual intervention needed: {}", consumerRecord.value());
+        acknowledgment.acknowledge();
+    }
+}
