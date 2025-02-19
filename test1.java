@@ -83,3 +83,10 @@ public class RetryPushVerificationListener {
     }
 }
 
+private void sendToRetryTopic(String message, int retryCount) {
+    ProducerRecord<String, String> record = new ProducerRecord<>("retry-topic", message);
+    record.headers().add("retry-count", ByteBuffer.allocate(4).putInt(retryCount).array());
+
+    kafkaTemplate.send(record);
+    log.warn("Message sent to retry-topic (Attempt {}/3): {}", retryCount, message);
+}
