@@ -80,3 +80,13 @@ public class PaymentPushVerificationListener {
 }
 
 
+Description:
+
+A component required a bean named 'manualAckKafkaListenerContainerFactory' that could not be found.
+
+
+Action:
+
+Consider defining a bean named 'manualAckKafkaListenerContainerFactory' in your configuration.
+
+
