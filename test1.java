@@ -87,6 +87,22 @@ A component required a bean named 'manualAckKafkaListenerContainerFactory' that 
 
 Action:
 
+@Configuration
+public class KafkaManualAckConfig {
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> manualAckKafkaListenerContainerFactory(
+            ConsumerFactory<String, String> consumerFactory) {
+
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL); // Manual Acknowledgment
+        return factory;
+    }
+}
+
+    
 Consider defining a bean named 'manualAckKafkaListenerContainerFactory' in your configuration.
 
 
