@@ -1,35 +1,49 @@
-public boolean processPaymentPushVerification(PaymentPushVerificationDto dto) throws JsonProcessingException {
-        logger.info("Starting payment push verification for ATRN: {}", dto.getAtrnNumber());
-        return transactionDao.getTransactionAndOrderDetail(dto)
-                .map(this::buildPaymentVerificationResponse)
-                .map(response -> {
-                    if (!response.getPaymentInfo().getPushStatus().equalsIgnoreCase(PushResponseStatus)) {
-                        logger.info("Push response does not match PushResponseStatus. Skipping push verification.");
-                        return true;
-                    }
-                    return encryptAndSendToMerchant(dto, response) && updatePushVerificationStatus(dto.getAtrnNumber());
-                })
-                .orElseGet(() -> {
-                    logger.warn("Push verification process failed due to missing transaction data for ATRN: {}", dto.getAtrnNumber());
-                    return false;
-                });
+public void processPaymentPushVerification(String message, Acknowledgment acknowledgment) {
+        try {
+            PaymentPushVerificationDto paymentPushVerificationDto = objectMapper.readValue(message, PaymentPushVerificationDto.class);
+            logger.info("Starting payment push verification for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
+            boolean processFlag = transactionDao.getTransactionAndOrderDetail(paymentPushVerificationDto)
+                    .map(this::buildPaymentVerificationResponse)
+                    .map(response -> {
+                        if (response.getOrderInfo() == null || !response.getPaymentInfo().getPushStatus().equalsIgnoreCase(PushResponseStatus)) {
+                            logger.info("Push response does not match PushResponseStatus. Skipping push verification.");
+                            acknowledgment.acknowledge();
+                        }
+                        return encryptAndSendToMerchant(paymentPushVerificationDto, response) && updatePushVerificationStatus(paymentPushVerificationDto.getAtrnNumber());
+                    })
+                    .orElseGet(() -> {
+                        logger.warn("Push verification process failed due to missing transaction data for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
+                        sendToRetryTopic(message);
+                        return false;
+                    });
+            if (processFlag) {
+                acknowledgment.acknowledge();
+            } else {
+                sendToRetryTopic(message);
+            }
+        } catch (JsonProcessingException e){
+            logger.error("Error while parsing payment push verification : {}", e.getMessage());
+            //Processing for retry
+            sendToRetryTopic(message);
+        }
     }
 
 
-private PaymentVerificationResponse buildPaymentVerificationResponse(List<Object[]> transactionOrderList) {
-        logger.info("Mapping Order data.");
-        // Retrieve the record from object[]
-        if(CollectionUtils.isEmpty(transactionOrderList)) ;
-
-        Object[] record = transactionOrderList.get(0);
-
-        PaymentVerificationDto paymentVerificationDto = paymentVerificationMapper.transactionToPaymentVerificationDto((Transaction) record[0]);
-        OrderInfoDto orderDto = paymentVerificationMapper.orderToOrderInfoDto((Order) record[1]);
-
-        logger.info("Transaction and Order data mapped.");
-        // Build and return the response
-        return PaymentVerificationResponse.builder()
-                .paymentInfo(paymentVerificationDto)
-                .orderInfo(orderDto)
-                .build();
+    public void sendToRetryTopic(String message){
+        kafkaTemplate.send("retry-topic", message);
     }
+
+
+@Component
+@RequiredArgsConstructor
+public class RetryPushVerificationListener {
+    private final LoggerUtility log = LoggerFactoryUtility.getLogger(this.getClass());
+    private final PaymentPushVerificationService paymentPushVerificationService;
+
+    @KafkaListener(topics = "retry-topic", groupId = "${spring.kafka.consumer.groupId}")
+    public void retryPushVerificationListener(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
+        log.info("Retrying message from retry-topic for key: {}", consumerRecord.key());
+        String message = consumerRecord.value();
+        paymentPushVerificationService.processPaymentPushVerification(message, acknowledgment);
+    }
+}
