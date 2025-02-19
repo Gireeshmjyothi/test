@@ -65,3 +65,18 @@ public void retryPushVerificationListener(ConsumerRecord<String, String> consume
 }
 
 
+@Component
+@RequiredArgsConstructor
+public class PaymentPushVerificationListener {
+    private final LoggerUtility log = LoggerFactoryUtility.getLogger(this.getClass());
+    private final PaymentPushVerificationService paymentPushVerificationService;
+
+    @KafkaListener(topics = "${spring.kafka.topic.payment.push.verification}", groupId = "${spring.kafka.consumer.groupId}", containerFactory = "manualAckKafkaListenerContainerFactory")
+    public void paymentPushVerification(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
+        log.debug("Push verification request received for key: {} and value: {}", consumerRecord.key(), consumerRecord.value());
+        String message = consumerRecord.value();
+        paymentPushVerificationService.processPaymentPushVerification(message, acknowledgment, 0);
+    }
+}
+
+
