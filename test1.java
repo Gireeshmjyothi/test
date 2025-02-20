@@ -21,3 +21,36 @@ public void processPaymentPushVerification(String message,AtomicInteger atomicIn
                 atomicInteger.set(0);
             }
     }
+
+
+public void processPaymentPushVerification(String message, AtomicInteger atomicInteger) 
+        throws JsonProcessingException, PaymentException {
+    
+    PaymentPushVerificationDto paymentPushVerificationDto = objectMapper.readValue(message, PaymentPushVerificationDto.class);
+    String atrnNumber = paymentPushVerificationDto.getAtrnNumber();
+
+    if (atomicInteger.incrementAndGet() > 3) {
+        transactionDao.updatePushVerificationStatus(atrnNumber, "F");
+        atomicInteger.set(0);
+        return;
+    }
+
+    logger.info("Starting payment push verification for ATRN: {}", atrnNumber);
+
+    Optional<TransactionResponse> transactionResponseOpt = transactionDao.getTransactionAndOrderDetail(paymentPushVerificationDto);
+    
+    if (transactionResponseOpt.isEmpty()) {
+        logger.warn("Push verification failed due to missing transaction data for ATRN: {}", atrnNumber);
+        throw new PaymentException(ErrorConstants.NOT_FOUND_ERROR_CODE, ErrorConstants.NOT_FOUND_ERROR_MESSAGE);
+    }
+
+    TransactionResponse response = transactionResponseOpt.get();
+    if (response.getPaymentInfo().getPushStatus().equalsIgnoreCase(PushResponseStatus)) {
+        return; // Skip push verification if status matches
+    }
+
+    logger.info("Push response does not match PushResponseStatus. Processing push verification.");
+    if (encryptAndSendToMerchant(paymentPushVerificationDto, response)) {
+        transactionDao.updatePushVerificationStatus(atrnNumber, "Y");
+    }
+}
