@@ -1,139 +1,48 @@
-    public TransactionResponse<String> invalidateToken() {
-        tokenValidator.validateEmptyToken(SecurityContextHolder.getContext().getAuthentication().getCredentials());
-        logger.info(" Invalidate Token - Service");
-        EPayPrincipal ePayPrincipal = EPayIdentityUtil.getUserPrincipal();
-        TokenDto tokenDto = tokenDao.getActiveTokenByMID(ePayPrincipal.getMid(), ePayPrincipal.getToken(),TokenStatus.ACTIVE).orElseThrow(() -> new TransactionException(ErrorConstants.NOT_FOUND_ERROR_CODE, MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, "Active Token")));
-        buildTokenDtoForInvalidate(tokenDto);
-        tokenDao.saveToken(tokenDto);
-        return TransactionResponse.<String>builder().data(List.of("Token invalidated successfully")).status(1).build();
+@Configuration
+public class KafkaConsumerConfig {
+    private final KafkaConsumerSettings kafkaConsumerSettings;
+
+    public KafkaConsumerConfig(KafkaConsumerSettings kafkaConsumerSettings) {
+        this.kafkaConsumerSettings = kafkaConsumerSettings;
     }
 
-public void validatePaymentPushStatusVerificationRequest(PaymentVerificationRequest paymentVerificationRequest, String mId) {
-        errorDtoList.clear();
-        logger.info("Validation ARTN Number.");
-        checkMandatoryField(paymentVerificationRequest.getAtrnNumber(), "ATRN number");
-        checkMandatoryField(mId, "Merchant Id");
-        throwIfErrors();
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, String> stringKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(stringConsumerFactory());
+        factory.setConcurrency(kafkaConsumerSettings.getNumberOfConsumers());
+        return factory;
     }
 
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, byte[]> byteArrayKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(byteArrayConsumerFactory());
+        factory.setConcurrency(kafkaConsumerSettings.getNumberOfConsumers());
+        return factory;
+    }
 
-@Data
-@Embeddable
-public class MerchantPricingRequestDto {
+    private ConsumerFactory<String, String> stringConsumerFactory() {
+        return new DefaultKafkaConsumerFactory<>(consumerConfigs(StringDeserializer.class));
+    }
 
-    @Column(name = "MERCHANTID")
-    private String mId;
+    private ConsumerFactory<String, byte[]> byteArrayConsumerFactory() {
+        return new DefaultKafkaConsumerFactory<>(consumerConfigs(ByteArrayDeserializer.class));
+    }
 
-    @Column(name = "PAYMODECODE")
-    private String payModeCode;
-
-    @Column(name = "AGGGTWMAPID")
-    private String gtwMapsId;
-
-    @Column(name = "PAYPROCTYPE")
-    private String payProcType;
-
-    @Transient
-    private BigDecimal transactionAmount;
-
-}
-
-@Data
-@Entity
-@Table(name = "PRICING_VIEW")
-public class MerchantPricing {
-
-    @EmbeddedId
-    private MerchantPricingRequestDto pricingRequestDto;
-
-    @Column(name = "INSTRUCTIONTYPE")
-    private String instructionType;
-
-    @Column(name = "MERCHANTFEE")
-    private BigDecimal merchantFee;
-
-    @Column(name = "SLABFROM")
-    private BigDecimal slabFrom;
-
-    @Column(name = "SLABTO")
-    private BigDecimal slabTo;
-
-    @Column(name = "MERCHANTFEEAPPLICABLE")
-    private Character merchantFeeApplicable;
-
-    @Column(name = "MERCHANTFEETYPE")
-    private Character merchantFeeType;
-
-    @Column(name = "OTHERFEEAPPLICABLE")
-    private Character otherFeeApplicable;
-
-    @Column(name = "OTHERFEETYPE")
-    private Character otherFeeType;
-
-    @Column(name = "OTHERFEE")
-    private BigDecimal otherFee;
-
-    @Column(name = "GTWFEEAPPLICABLE")
-    private Character gtwFeeApplicable;
-
-    @Column(name = "GTWFEETYPE")
-    private Character gtwFeeType;
-
-    @Column(name = "GTWFEE")
-    private BigDecimal gtwFee;
-
-    @Column(name = "AGGSERVICEFEEAPPLICABLE")
-    private Character aggServiceFeeApplicable;
-
-    @Column(name = "AGGSERVICEFEETYPE")
-    private Character aggServiceFeeType;
-
-    @Column(name = "AGGSERVICEFEE")
-    private BigDecimal aggServiceFee;
-
-    @Column(name = "FEEPROCESSFLAG")
-    private Character feeProcessingFlag;
-
-    @Column(name = "SERVICETAX")
-    private BigDecimal serviceTax;
-
-    @Column(name = "SERVICETAXTYPE")
-    private String serviceTaxType;
-
-    @Column(name = "SERVICETAXID")
-    private String serviceTaxId;
-
-    @Column(name = "TXNAPPLICABLE")
-    private Character txnApplicable;
-
-    @Column(name = "TRANSACTIONTYPE")
-    private String transactionType;
-
-    @Column(name = "BEARABLECOMPONENT")
-    private String bearableComponent;
-
-    @Column(name = "BEARABLEENTITY")
-    private Character bearableEntity;
-
-    @Column(name = "BEARABLEAMOUNTCUTOFF")
-    private BigDecimal bearableAmountCutoff;
-
-    @Column(name = "BEARABLEFLATRATE")
-    private BigDecimal bearableFlatRate;
-
-    @Column(name = "BEARABLELIMIT")
-    private String bearableLimit;
-
-    @Column(name = "BEARABLEPERCENTAGERATE")
-    private BigDecimal bearablePercentageRate;
-
-    @Column(name = "BEARABLETYPE")
-    private Character bearableType;
-
-    @Column(name = "TOTALFEERATE")
-    private BigDecimal totalFeeRate;
-
-    @Column(name = "PROCESSFLAG")
-    private Character processFlag;
-
+    private Map<String, Object> consumerConfigs(Class<?> valueDeserializerClass) {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConsumerSettings.getBootstrapServers());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConsumerSettings.getGroupId());
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, kafkaConsumerSettings.isAutoCommitCursor());
+        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, kafkaConsumerSettings.getAutoCommitCursorIntervalMS());
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getSessionTimeoutMS());
+        props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getRequestTimeoutMS());
+        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, kafkaConsumerSettings.getFetchMaxWaitMS());
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, kafkaConsumerSettings.getMaxPollRecords());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaConsumerSettings.getOffsetReset());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, kafkaConsumerSettings.getKeyDeserializer());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializerClass);
+        return props;
+    }
 }
