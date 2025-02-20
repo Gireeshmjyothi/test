@@ -1,108 +1,48 @@
-public void processPaymentPushVerification(String message, Acknowledgment acknowledgment) {
-    try {
-        PaymentPushVerificationDto paymentPushVerificationDto = objectMapper.readValue(message, PaymentPushVerificationDto.class);
-        logger.info("Starting payment push verification for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
-
-        boolean processFlag = transactionDao.getTransactionAndOrderDetail(paymentPushVerificationDto)
-                .map(this::buildPaymentVerificationResponse)
-                .map(response -> {
-                    if (response.getOrderInfo() == null || !response.getPaymentInfo().getPushStatus().equalsIgnoreCase(PushResponseStatus)) {
-                        logger.info("Push response does not match PushResponseStatus. Skipping push verification.");
-                        acknowledgment.acknowledge();
-                    }
-                    return encryptAndSendToMerchant(paymentPushVerificationDto, response) && updatePushVerificationStatus(paymentPushVerificationDto.getAtrnNumber());
-                })
-                .orElseGet(() -> {
-                    logger.warn("Push verification process failed due to missing transaction data for ATRN: {}", paymentPushVerificationDto.getAtrnNumber());
-                    sendToRetryTopic(message, 1); // Start with retry count 1
-                    return false;
-                });
-
-        if (processFlag) {
-            acknowledgment.acknowledge();
-        } else {
-            sendToRetryTopic(message, 1); // Start with retry count 1
-        }
-    } catch (JsonProcessingException e) {
-        logger.error("Error while parsing payment push verification : {}", e.getMessage());
-        sendToRetryTopic(message, 1);
-    }
-}
-
-
-public void sendToRetryTopic(String message, int retryCount) {
-    if (retryCount >= 3) {
-        logger.info("Max retry attempts reached. Updating status to 'F'.");
-        updatePushVerificationStatusToFailed(message); // Method to update the status in DB
-        return;
-    }
-
-    kafkaTemplate.send(MessageBuilder
-        .withPayload(message)
-        .setHeader(KafkaHeaders.TOPIC, "retry-topic")
-        .setHeader("retryCount", retryCount)
-        .build());
-}
-
-
-@KafkaListener(topics = "retry-topic", groupId = "${spring.kafka.consumer.groupId}")
-public void retryPushVerificationListener(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
-    log.info("Retrying message from retry-topic for key: {}", consumerRecord.key());
-    
-    String message = consumerRecord.value();
-    int retryCount = consumerRecord.headers().lastHeader("retryCount") != null ?
-            Integer.parseInt(new String(consumerRecord.headers().lastHeader("retryCount").value())) : 0;
-
-    if (retryCount >= 3) {
-        log.info("Max retry attempts reached for key: {}. Marking as failed.", consumerRecord.key());
-        updatePushVerificationStatusToFailed(message);
-        acknowledgment.acknowledge();
-        return;
-    }
-
-    paymentPushVerificationService.processPaymentPushVerification(message, acknowledgment);
-    sendToRetryTopic(message, retryCount + 1);
-}
-
-
-@Component
-@RequiredArgsConstructor
-public class PaymentPushVerificationListener {
-    private final LoggerUtility log = LoggerFactoryUtility.getLogger(this.getClass());
-    private final PaymentPushVerificationService paymentPushVerificationService;
-
-    @KafkaListener(topics = "${spring.kafka.topic.payment.push.verification}", groupId = "${spring.kafka.consumer.groupId}", containerFactory = "manualAckKafkaListenerContainerFactory")
-    public void paymentPushVerification(ConsumerRecord<String, String> consumerRecord, Acknowledgment acknowledgment) {
-        log.debug("Push verification request received for key: {} and value: {}", consumerRecord.key(), consumerRecord.value());
-        String message = consumerRecord.value();
-        paymentPushVerificationService.processPaymentPushVerification(message, acknowledgment, 0);
-    }
-}
-
-
-Description:
-
-A component required a bean named 'manualAckKafkaListenerContainerFactory' that could not be found.
-
-
-Action:
-
 @Configuration
-public class KafkaManualAckConfig {
+public class KafkaConsumerConfig {
+    private final KafkaConsumerSettings kafkaConsumerSettings;
+
+    public KafkaConsumerConfig(KafkaConsumerSettings kafkaConsumerSettings) {
+        this.kafkaConsumerSettings = kafkaConsumerSettings;
+    }
 
     @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> manualAckKafkaListenerContainerFactory(
-            ConsumerFactory<String, String> consumerFactory) {
-
-        ConcurrentKafkaListenerContainerFactory<String, String> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(consumerFactory);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL); // Manual Acknowledgment
+    public ConcurrentKafkaListenerContainerFactory<String, String> stringKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(stringConsumerFactory());
+        factory.setConcurrency(kafkaConsumerSettings.getNumberOfConsumers());
         return factory;
     }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, byte[]> byteArrayKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, byte[]> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(byteArrayConsumerFactory());
+        factory.setConcurrency(kafkaConsumerSettings.getNumberOfConsumers());
+        return factory;
+    }
+
+    private ConsumerFactory<String, String> stringConsumerFactory() {
+        return new DefaultKafkaConsumerFactory<>(consumerConfigs(StringDeserializer.class));
+    }
+
+    private ConsumerFactory<String, byte[]> byteArrayConsumerFactory() {
+        return new DefaultKafkaConsumerFactory<>(consumerConfigs(ByteArrayDeserializer.class));
+    }
+
+    private Map<String, Object> consumerConfigs(Class<?> valueDeserializerClass) {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConsumerSettings.getBootstrapServers());
+        props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConsumerSettings.getGroupId());
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, kafkaConsumerSettings.isAutoCommitCursor());
+        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, kafkaConsumerSettings.getAutoCommitCursorIntervalMS());
+        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getSessionTimeoutMS());
+        props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getRequestTimeoutMS());
+        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, kafkaConsumerSettings.getFetchMaxWaitMS());
+        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, kafkaConsumerSettings.getMaxPollRecords());
+        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaConsumerSettings.getOffsetReset());
+        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, kafkaConsumerSettings.getKeyDeserializer());
+        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializerClass);
+        return props;
+    }
 }
-
-    
-Consider defining a bean named 'manualAckKafkaListenerContainerFactory' in your configuration.
-
-
