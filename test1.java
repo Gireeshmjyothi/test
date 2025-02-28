@@ -59,3 +59,42 @@ has been successfully processed through SBIePay.
 <b>Note - This is an auto-generated email, and you do not need to reply to this.</b>
 </body>
 </html>
+
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <style>
+        body {
+            font: 12px/18px "Trebuchet MS";
+        }
+    </style>
+</head>
+<body>
+<br/>
+Dear Customer,
+<br/><br/>
+You have booked an order on <span th:text="${merchantName}"></span> with the below details:
+<br/><br/>
+&#45;&nbsp;Merchant Website: <span th:text="${merchantUrl}"></span>
+<br/>
+&#45;&nbsp;Merchant Order Number: <span th:text="${merchantOrderId}"></span>
+<br/>
+&#45;&nbsp;SBIePay transaction reference number: <span th:text="${atrn}"></span>
+<br/>
+&#45;&nbsp;Transaction booking date: <span th:text="${txnDate}"></span>
+<br/>
+&#45;&nbsp;Transaction amount: <span th:text="${postingAmount}"></span>
+<br/>
+&#45;&nbsp;Transaction status: <span th:text="${statusDescription}"></span>
+<br/><br/>
+For any further assistance, please contact your merchant.
+<br/><br/>
+Regards  
+<br/>
+SBIePay Team  
+<br/><br/>
+<b>Note - This is an auto-generated email, and you do not need to reply to this.</b>
+</body>
+</html>
+        
