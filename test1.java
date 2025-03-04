@@ -23,3 +23,16 @@ COMMIT;
 @Modifying
 @Query("UPDATE MerchantOrderPaymentEntity mopDtl SET mopDtl.poolingStatus = 'Q' WHERE mopDtl.id IN :ids")
 int updatePoolingStatusToQ(@Param("ids") List<Long> ids);
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+...
+
+// Grouping by payMode
+Map<String, List<MerchantOrderPaymentEntity>> groupedByPayMode = merchantOrderPaymentList.stream()
+        .collect(Collectors.groupingBy(MerchantOrderPaymentEntity::getPayMode));
+
+System.out.println("INB Transactions: " + groupedByPayMode.get("INB"));
+System.out.println("Other INB Transactions: " + groupedByPayMode.get("otherINB"));
+
