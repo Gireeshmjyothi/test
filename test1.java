@@ -18,3 +18,8 @@ COMMIT;
        "(mopDtl.transactionStatus IN ('BOOKED', 'PENDING') AND mopDtl.paymentStatus IN ('PAYMENT_INITIATION_START', 'PENDING')) " +
        "AND mopDtl.poolingStatus = 'P'")
 
+            
+
+@Modifying
+@Query("UPDATE MerchantOrderPaymentEntity mopDtl SET mopDtl.poolingStatus = 'Q' WHERE mopDtl.id IN :ids")
+int updatePoolingStatusToQ(@Param("ids") List<Long> ids);
