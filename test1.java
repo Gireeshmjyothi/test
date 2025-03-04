@@ -36,3 +36,30 @@ Map<String, List<MerchantOrderPaymentEntity>> groupedByPayMode = merchantOrderPa
 System.out.println("INB Transactions: " + groupedByPayMode.get("INB"));
 System.out.println("Other INB Transactions: " + groupedByPayMode.get("otherINB"));
 
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+...
+
+// First, group by payMode (INB / otherINB)
+Map<String, Map<String, List<MerchantOrderPaymentEntity>>> groupedByPayModeAndStatus = merchantOrderPaymentList.stream()
+        .collect(Collectors.groupingBy(
+                MerchantOrderPaymentEntity::getPayMode,
+                Collectors.groupingBy(MerchantOrderPaymentEntity::getTransactionStatus)
+        ));
+
+// Extract groups
+List<MerchantOrderPaymentEntity> inbBooked = groupedByPayModeAndStatus.getOrDefault("INB", Map.of()).getOrDefault("BOOKED", List.of());
+List<MerchantOrderPaymentEntity> inbPending = groupedByPayModeAndStatus.getOrDefault("INB", Map.of()).getOrDefault("PENDING", List.of());
+
+List<MerchantOrderPaymentEntity> otherInbBooked = groupedByPayModeAndStatus.getOrDefault("otherINB", Map.of()).getOrDefault("BOOKED", List.of());
+List<MerchantOrderPaymentEntity> otherInbPending = groupedByPayModeAndStatus.getOrDefault("otherINB", Map.of()).getOrDefault("PENDING", List.of());
+
+System.out.println("INB - BOOKED: " + inbBooked);
+System.out.println("INB - PENDING: " + inbPending);
+System.out.println("otherINB - BOOKED: " + otherInbBooked);
+System.out.println("otherINB - PENDING: " + otherInbPending);
+
+
