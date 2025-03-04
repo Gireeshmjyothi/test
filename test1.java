@@ -8,3 +8,8 @@ UPDATE MERCHANT_ORDER_PAYMENTS
 SET POOLING_STATUS = 'P' 
 WHERE POOLING_STATUS IS NULL;
 COMMIT;
+
+
+@Query("SELECT mopDtl FROM MerchantOrderPaymentEntity mopDtl WHERE mopDtl.transactionStatus IN ('BOOKED', 'PENDING') " +
+            "AND mopDtl.paymentStatus IN ('PAYMENT_INITIATION_START', 'PENDING')")
+    List<MerchantOrderPaymentEntity> findMerchantOrderPaymentDetails();
