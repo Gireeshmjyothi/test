@@ -1,30 +1,36 @@
-ALTER TABLE MERCHANT_ORDER_PAYMENTS ADD  PUSH_STATUS VARCHAR2(10);
+Caused by: java.lang.IllegalArgumentException: org.hibernate.query.SemanticException: Missing constructor for type 'PaymentVerificationDto' [SELECT new com.epay.transaction.dto.PaymentVerificationDto(t.atrnNumber AS atrn, t.orderAmount, t.orderAmount AS totalAmount, t.transactionStatus, t.payMode, t.channelBank AS bankName, t.bankReferenceNumber AS bankTxnNumber, t.payProcId AS processor, t.createdDate AS transactionTime, t.cin AS CIN, t.pushStatus), new com.epay.transaction.dto.OrderInfoDto(o.sbiOrderRefNumber AS sbiOrderId, o.orderRefNumber AS merchantOrderNumber, o.status AS orderStatus, o.currencyCode AS currency) FROM MerchantOrderPayment t JOIN MerchantOrder o ON t.orderRefNumber = o.orderRefNumber WHERE t.atrnNumber = :atrnNumber AND t.pushStatus = :pushStatus]
+
+ @Query("SELECT new com.epay.transaction.dto.PaymentVerificationDto(t.atrnNumber AS atrn, t.orderAmount, t.orderAmount AS totalAmount, t.transactionStatus, t.payMode, t.channelBank AS bankName, t.bankReferenceNumber AS bankTxnNumber, t.payProcId AS processor, t.createdDate AS transactionTime, t.cin AS CIN, t.pushStatus), " +
+            "new com.epay.transaction.dto.OrderInfoDto(o.sbiOrderRefNumber AS sbiOrderId, o.orderRefNumber AS merchantOrderNumber, o.status AS orderStatus, o.currencyCode AS currency) " +
+            "FROM MerchantOrderPayment t " +
+            "JOIN MerchantOrder o ON t.orderRefNumber = o.orderRefNumber " +
+            "WHERE t.atrnNumber = :atrnNumber " +
+            "AND t.pushStatus = :pushStatus")
+    Optional<List<Object[]>> findTransactionAndOrderDetail(@Param("atrnNumber") String atrnNumber,
+                                                           @Param("pushStatus") String pushStatus);
 
 
-ALTER TABLE MERCHANT_ORDER_PAYMENTS 
-ADD POOLING_STATUS VARCHAR2(10) DEFAULT 'P' NOT NULL;
+@Data
+@AllArgsConstructor
+public class PaymentVerificationDto {
+    private String atrn;
+    private BigDecimal orderAmount;
+    private BigDecimal totalAmount;
+    private String transactionStatus;
+    private String payMode;
+    private String bankName;
+    private String bankTxnNumber;
+    private String processor;
+    private Long transactionTime;
+    private String CIN;
+    private String pushStatus;
+}
 
-  kafka:
-    bootstrapServers: dev-cluster-kafka-bootstrap-dev-kafka.apps.dev.sbiepay.sbi:443
-    consumer:
-      groupId: gatewayPooling-consumers
-      keyDeserializer: org.apache.kafka.common.serialization.StringDeserializer
-      valueDeserializer: org.apache.kafka.common.serialization.StringDeserializer
-      autoOffsetReset: latest # consumer reading msg from latest offset
-      autoCommitInterval: 100 # interval of auto commit
-      enableAutoCommit: true #ensure offset are updated periodically without manual intervention
-      sessionTimeoutMS: 300000
-      requestTimeoutMS: 420000 #max time broker wait to collect data before responding a request
-      fetchMaxWaitMS: 200 # max time the broker waits
-      maxPollRecords: 5 # max number of the records consumer return in single poll operation
-      retryMaxAttempts: 3
-      retryBackOffInitialIntervalMS: 10000
-      retryBackOffMaxIntervalMS: 30000
-      retryBackOffMultiplier: 2
-      spring.json.trusted.packages: com.epay.reporting
-      numberOfConsumers: 1
-
-
-
-
-
+@Data
+@RequiredArgsConstructor
+public class OrderInfoDto {
+    private String sbiOrderId;
+    private String merchantOrderNumber;
+    private OrderStatus orderStatus;
+    private String currency;
+}
