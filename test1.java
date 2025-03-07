@@ -1,36 +1,46 @@
-Caused by: java.lang.IllegalArgumentException: org.hibernate.query.SemanticException: Missing constructor for type 'PaymentVerificationDto' [SELECT new com.epay.transaction.dto.PaymentVerificationDto(t.atrnNumber AS atrn, t.orderAmount, t.orderAmount AS totalAmount, t.transactionStatus, t.payMode, t.channelBank AS bankName, t.bankReferenceNumber AS bankTxnNumber, t.payProcId AS processor, t.createdDate AS transactionTime, t.cin AS CIN, t.pushStatus), new com.epay.transaction.dto.OrderInfoDto(o.sbiOrderRefNumber AS sbiOrderId, o.orderRefNumber AS merchantOrderNumber, o.status AS orderStatus, o.currencyCode AS currency) FROM MerchantOrderPayment t JOIN MerchantOrder o ON t.orderRefNumber = o.orderRefNumber WHERE t.atrnNumber = :atrnNumber AND t.pushStatus = :pushStatus]
+@Setter
+@Component
+@ConfigurationProperties(prefix = "spring.kafka")
+public class KafkaProducerSettings {
+    @Value("${spring.kafka.bootstrapServers}")
+    private String bootstrapServers;
 
- @Query("SELECT new com.epay.transaction.dto.PaymentVerificationDto(t.atrnNumber AS atrn, t.orderAmount, t.orderAmount AS totalAmount, t.transactionStatus, t.payMode, t.channelBank AS bankName, t.bankReferenceNumber AS bankTxnNumber, t.payProcId AS processor, t.createdDate AS transactionTime, t.cin AS CIN, t.pushStatus), " +
-            "new com.epay.transaction.dto.OrderInfoDto(o.sbiOrderRefNumber AS sbiOrderId, o.orderRefNumber AS merchantOrderNumber, o.status AS orderStatus, o.currencyCode AS currency) " +
-            "FROM MerchantOrderPayment t " +
-            "JOIN MerchantOrder o ON t.orderRefNumber = o.orderRefNumber " +
-            "WHERE t.atrnNumber = :atrnNumber " +
-            "AND t.pushStatus = :pushStatus")
-    Optional<List<Object[]>> findTransactionAndOrderDetail(@Param("atrnNumber") String atrnNumber,
-                                                           @Param("pushStatus") String pushStatus);
+    @Value("${spring.kafka.producer.acks}")
+    private String acks;
 
+    @Value("${spring.kafka.producer.retries}")
+    private int retries;
 
-@Data
-@AllArgsConstructor
-public class PaymentVerificationDto {
-    private String atrn;
-    private BigDecimal orderAmount;
-    private BigDecimal totalAmount;
-    private String transactionStatus;
-    private String payMode;
-    private String bankName;
-    private String bankTxnNumber;
-    private String processor;
-    private Long transactionTime;
-    private String CIN;
-    private String pushStatus;
-}
+    @Value("${spring.kafka.producer.batchSize}")
+    private int batchSize;
 
-@Data
-@RequiredArgsConstructor
-public class OrderInfoDto {
-    private String sbiOrderId;
-    private String merchantOrderNumber;
-    private OrderStatus orderStatus;
-    private String currency;
+    @Value("${spring.kafka.producer.lingerMs}")
+    private int lingerMs;
+
+    @Value("${spring.kafka.producer.bufferMemory}")
+    private long bufferMemory;
+
+    @Value("${spring.profiles.active}")
+    private String activeProfile;
+
+    @Value("${spring.kafka.properties.security.protocol:}")
+    private String securityProtocol;
+    
+    @Value("${spring.kafka.properties.ssl.truststore.location:}")
+    private String trustLocation;
+    
+    @Value("${spring.kafka.properties.ssl.truststore.password:}")
+    private String trustPassword;
+    
+    @Value("${spring.kafka.properties.ssl.truststore.type:}")
+    private String trustType;
+    
+    @Value("${spring.kafka.properties.ssl.keystore.location:}")
+    private String keyLocation;
+    
+    @Value("${spring.kafka.properties.ssl.keystore.password:}")
+    private String keyPassword;
+    
+    @Value("${spring.kafka.properties.ssl.keystore.type:}")
+    private String keyType;
 }
