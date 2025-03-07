@@ -1,28 +1,10 @@
-external:
-  api:
-    sms:
-      gateway:
-        base:
-          path: "https://smsapipprod.sbi.co.in:9443"
-        url: "/bmg/sms/epaypgotpdom"
-        user: "epaypgotpdom"
-        password: "Ep@y1Dpt"
-      body:
-        content:
-          type: "text"
-        sender:
-          id: "SBIBNK"
-        int:
-          flag: 0
-        charging: 0
+#kafka producer local setting
+spring.kafka.properties.security.protocol=SSL
+spring.kafka.properties.ssl.truststore.location=C:/certs/kafka/dev-cluster-cluster-ca-cert.p12
+spring.kafka.properties.ssl.truststore.password=Xe8FrxOGvVAx
+spring.kafka.properties.ssl.truststore.type=PKCS12
+spring.kafka.properties.ssl.keystore.location=C:/certs/kafka/dev-cluster-clients-ca-cert.p12
+spring.kafka.properties.ssl.keystore.password=J55FITkgEFid
+spring.kafka.properties.ssl.keystore.type=PKCS12
 
-spring:
-  mail:
-    host: "10.176.245.236"
-    port: 587
-    username: "sbitestclient"
-    password: "sbitestclient_7f827c4b3aa6cd1f08d6b9cce2c0c80e"
-
-email:
-  recipient: "ebms_uat_receiver@ebmsgits.sbi.co.in"
-  from: "ebms_uat_sender@ebmsgits.sbi.co.in"
+spring.kafka.consumer.number-of-consumer=1
