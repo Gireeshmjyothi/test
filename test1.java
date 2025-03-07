@@ -47,34 +47,39 @@ public class KafkaProducerSettings {
 
 
 
-#Kafka consumer setting
-spring.kafka.consumer.groupId=transaction-consumers
-spring.kafka.consumer.enableAutoCommit=true
-spring.kafka.consumer.autoCommitInterval=100
-spring.kafka.consumer.sessionTimeoutMS=300000
-spring.kafka.consumer.requestTimeoutMS=420000
-spring.kafka.consumer.fetchMaxWaitMS=200
-spring.kafka.consumer.maxPollRecords=5
-spring.kafka.consumer.autoOffsetReset=latest
-spring.kafka.consumer.keyDeserializer=org.apache.kafka.common.serialization.StringDeserializer
-spring.kafka.consumer.valueDeserializer=org.apache.kafka.common.serialization.StringDeserializer
-spring.kafka.consumer.retryMaxAttempts=3
-spring.kafka.consumer.retryBackOffInitialIntervalMS=10000
-spring.kafka.consumer.retryBackOffMaxIntervalMS=30000
-spring.kafka.consumer.numberOfConsumers=1
+spring:
+  kafka:
+    consumer:
+      group-id: transaction-consumers
+      enable-auto-commit: true
+      auto-commit-interval: 100
+      session-timeout-ms: 300000
+      request-timeout-ms: 420000
+      fetch-max-wait-ms: 200
+      max-poll-records: 5
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      retry:
+        max-attempts: 3
+        backoff:
+          initial-interval-ms: 10000
+          max-interval-ms: 30000
+      number-of-consumers: 1
 
+    producer:
+      acks: all
+      retries: 3
+      batch-size: 1000
+      linger-ms: 1
+      buffer-memory: 33554432
+      key-deserializer: org.apache.kafka.common.serialization.StringSerializer
+      value-deserializer: org.apache.kafka.common.serialization.StringSerializer
 
-#Kafka producer setting
-spring.kafka.producer.acks=all
-spring.kafka.producer.retries=3
-spring.kafka.producer.batchSize=1000
-spring.kafka.producer.lingerMs=1
-spring.kafka.producer.bufferMemory=33554432
-spring.kafka.producer.keyDeserializer=org.apache.kafka.common.serialization.StringSerializer
-spring.kafka.producer.valueDeserializer=org.apache.kafka.common.serialization.StringSerializer
-
-#Topics
-spring.kafka.topic.transaction.notification.sms=transaction_sms_notification_topic
-spring.kafka.topic.transaction.notification.email=transaction_email_notification_topic
-spring.kafka.topic.partitions=4
-spring.kafka.topic.replicationFactor=1
+    topic:
+      transaction:
+        notification:
+          sms: transaction_sms_notification_topic
+          email: transaction_email_notification_topic
+      partitions: 4
+      replication-factor: 1
