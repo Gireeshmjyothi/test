@@ -45,41 +45,20 @@ public class KafkaProducerSettings {
     private String keyType;
 }
 
+#SMS and Email config
+external.api.sms.gateway.base.path=https://smsapipprod.sbi.co.in:9443
+external.api.sms.gateway.url=/bmg/sms/epaypgotpdom
+external.api.sms.gateway.user=epaypgotpdom
+external.api.sms.gateway.password=Ep@y1Dpt
+external.api.sms.body.content.type=text
+external.api.sms.body.sender.id=SBIBNK
+external.api.sms.body.int.flag=0
+external.api.sms.body.charging=0
 
+spring.mail.host=10.176.245.236
+spring.mail.port=587
+spring.mail.username=sbitestclient
+spring.mail.password=sbitestclient_7f827c4b3aa6cd1f08d6b9cce2c0c80e
 
-spring:
-  kafka:
-    consumer:
-      group-id: transaction-consumers
-      enable-auto-commit: true
-      auto-commit-interval: 100
-      session-timeout-ms: 300000
-      request-timeout-ms: 420000
-      fetch-max-wait-ms: 200
-      max-poll-records: 5
-      auto-offset-reset: latest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      retry:
-        max-attempts: 3
-        backoff:
-          initial-interval-ms: 10000
-          max-interval-ms: 30000
-      number-of-consumers: 1
-
-    producer:
-      acks: all
-      retries: 3
-      batch-size: 1000
-      linger-ms: 1
-      buffer-memory: 33554432
-      key-deserializer: org.apache.kafka.common.serialization.StringSerializer
-      value-deserializer: org.apache.kafka.common.serialization.StringSerializer
-
-    topic:
-      transaction:
-        notification:
-          sms: transaction_sms_notification_topic
-          email: transaction_email_notification_topic
-      partitions: 4
-      replication-factor: 1
+email.recipient=ebms_uat_receiver@ebmsgits.sbi.co.in
+email.from=ebms_uat_sender@ebmsgits.sbi.co.in
