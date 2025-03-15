@@ -1,15 +1,11 @@
-spring:
-  kafka:
-    properties:
-      security.protocol: S
-      ssl:
-        truststore:
-          location: C:/certs/kafka/dev-cluster-cluster-ca-cert
-          password: Xe8FrxOG
-          type: PKCS
-        keystore:
-          location: C:/certs/kafka/dev-cluster-clients-ca-cert
-          password: J55Fooopd
-          type: P
-    consumer:
-      number-of-consumer: 1
+private void validateExistsByOrderRefNumber(String orderRefNumber, MerchantInfoDTO merchantInfoDTO) {
+        if(merchantInfoDTO.getMerchantVolVelFlag().equalsIgnoreCase("N") && transactionDao.getSbiOrderRefNumberCountByOrderRefNumber(orderRefNumber) <= 6){
+            return;
+        }else{
+            if (orderDao.existsByOrderRefNumber(orderRefNumber)) {
+                logger.info("validateOrderRequest, Validate Order orderRefNumber :"+orderRefNumber);
+                addError("OrderRefNumber", OrderErrorConstant.ALREADY_EXIST_ERROR_CODE, OrderErrorConstant.ALREADY_EXIST_ERROR_MESSAGE);
+            }
+        }
+        throwIfErrors();
+    }
