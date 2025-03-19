@@ -1,11 +1,4 @@
-private void validateExistsByOrderRefNumber(String orderRefNumber, MerchantInfoDTO merchantInfoDTO) {
-        if(merchantInfoDTO.getMerchantVolVelFlag().equalsIgnoreCase("N") && transactionDao.getSbiOrderRefNumberCountByOrderRefNumber(orderRefNumber) <= 6){
-            return;
-        }else{
-            if (orderDao.existsByOrderRefNumber(orderRefNumber)) {
-                logger.info("validateOrderRequest, Validate Order orderRefNumber :"+orderRefNumber);
-                addError("OrderRefNumber", OrderErrorConstant.ALREADY_EXIST_ERROR_CODE, OrderErrorConstant.ALREADY_EXIST_ERROR_MESSAGE);
-            }
-        }
-        throwIfErrors();
-    }
+@Query("SELECT mopDtl FROM MerchantOrderPaymentEntity mopDtl WHERE " +
+            "(mopDtl.transactionStatus IN ('BOOKED', 'PENDING') AND mopDtl.paymentStatus IN ('PAYMENT_INITIATION_START', 'PENDING')) " +
+            "AND mopDtl.poolingStatus = 'P'")
+    List<MerchantOrderPaymentEntity> findMerchantOrderPaymentDetails();
