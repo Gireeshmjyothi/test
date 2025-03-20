@@ -1,9 +1,5 @@
-Map<Boolean, List<MerchantOrderPaymentEntity>> groupedByGatewayMapId = merchantOrderPaymentList.stream()
-    .collect(Collectors.partitioningBy(e -> e.getGatewayMapId() == 404));
+List<MerchantOrderPaymentDto> bookedList = merchantOrderPaymentList.stream()
+                    .filter(mop -> TRANSACTION_STATUS_BOOKED.equals(mop.getTransactionStatus()))
+                    .toList();
 
-// List of INB (gatewayMapId == 404)
-List<MerchantOrderPaymentEntity> inbList = groupedByGatewayMapId.getOrDefault(true, List.of());
-inbProducer.publish(UUID.randomUUID().toString(), gatewayPoolingMapper.mapMerchantOrderPaymentEntity(inbList));
-
-// List of other INB (gatewayMapId != 404)
-List<MerchantOrderPaymentEntity> otherInbList = groupedByGatewayMapId.getOrDefault(false, List.of());
+            List<String> atrnNumbers = bookedList.stream().map(MerchantOrderPaymentDto::getAtrnNumber).toList();
