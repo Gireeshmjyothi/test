@@ -1,2 +1,1 @@
-@Query("SELECT m FROM /Admin_Merchant_Info m WHERE m.mId = $1 AND m.orderExpiryTime > $2")
-    MerchantCache findMerchantInfoByMId(@Param("mId") String mId, @Param("minutes") Long minutes);
+This Gauge has been already registered (MeterId{name='kafka.consumer.coordinator.partition.lost.latency.max', tags=[tag(client.id=consumer-gatewayPooling-consumers-1),tag(kafka.version=3.7.2),tag(spring.id=kafkaConsumerFactory.consumer-gatewayPooling-consumers-1)]}), the Gauge registration will be ignored. Note that subsequent logs will be logged at debug level.
