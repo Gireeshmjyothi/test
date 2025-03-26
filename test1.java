@@ -1,1 +1,2 @@
- Statistics sampling thread detected a wakeup delay of 9665 ms, indicating a possible resource issue. Check the GC, memory, and CPU statistics
+This Gauge has been already registered (MeterId{name='kafka.consumer.connection.close.rate', tags=[tag(client.id=consumer-gatewayOfflinePooling-consumers-1),tag(kafka.version=3.7.2),tag(spring.id=kafkaConsumerFactory.consumer-gatewayOfflinePooling-consumers-1)]}), the Gauge registration will be ignored. Note that subsequent logs will be logged at debug level.
+2025-03-26 12:08:10.045 ERROR | com.epay.gateway.etl.producer.OtherInbPoolingProducer:24 | principal=  | scenario= | operation= | correlation= | publish | Exception thrown when sending a message with key='gatewayPooling.AaxqOvAUEh' and payload='{"atrnNumber"
