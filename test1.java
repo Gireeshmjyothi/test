@@ -1,68 +1,9 @@
-@Configuration
-@RequiredArgsConstructor
-public class KafkaConsumerConfig {
-
-    private final KafkaConsumerSettings kafkaConsumerSettings;
-
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, String>> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(stringConsumerFactory());
-        factory.setConcurrency(kafkaConsumerSettings.getNumberOfConsumers());
-        return factory;
-    }
-
-    public ConsumerFactory<String, String> stringConsumerFactory() {
-        return new DefaultKafkaConsumerFactory<>(getConsumerConfigs());
-    }
-
-    public Map<String, Object> getConsumerConfigs() {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConsumerSettings.getBootstrapServers());
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConsumerSettings.getGroupId());
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, kafkaConsumerSettings.isAutoCommitCursor());
-        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, kafkaConsumerSettings.getAutoCommitCursorIntervalMS());
-        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getSessionTimeoutMS());
-        props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getRequestTimeoutMS());
-        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, kafkaConsumerSettings.getFetchMaxWaitMS());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, kafkaConsumerSettings.getMaxPollRecords());
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaConsumerSettings.getOffsetReset());
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, kafkaConsumerSettings.getKeyDeserializer());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        return props;
-    }
-}
-
-
-@Configuration
-@RequiredArgsConstructor
-public class KafkaConsumerConfig {
-
-    private final KafkaConsumerSettings kafkaConsumerSettings;
-
-    public KafkaListenerContainerFactory<ConcurrentMessageListenerContainer<String, String>> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, String> factory = new ConcurrentKafkaListenerContainerFactory<>();
-        factory.setConsumerFactory(stringConsumerFactory());
-        factory.setConcurrency(kafkaConsumerSettings.getNumberOfConsumers());
-        return factory;
-    }
-
-    public ConsumerFactory<String, String> stringConsumerFactory() {
-        return new DefaultKafkaConsumerFactory<>(getConsumerConfigs());
-    }
-
-    public Map<String, Object> getConsumerConfigs() {
-        Map<String, Object> props = new HashMap<>();
-        props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConsumerSettings.getBootstrapServers());
-        props.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaConsumerSettings.getGroupId());
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, kafkaConsumerSettings.isAutoCommitCursor());
-        props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, kafkaConsumerSettings.getAutoCommitCursorIntervalMS());
-        props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getSessionTimeoutMS());
-        props.put(ConsumerConfig.REQUEST_TIMEOUT_MS_CONFIG, kafkaConsumerSettings.getRequestTimeoutMS());
-        props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, kafkaConsumerSettings.getFetchMaxWaitMS());
-        props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, kafkaConsumerSettings.getMaxPollRecords());
-        props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaConsumerSettings.getOffsetReset());
-        props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, kafkaConsumerSettings.getKeyDeserializer());
-        props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        return props;
-    }
-}
+ Give up sending metadata request since no node is available
+2025-03-26 14:25:56.315 DEBUG | org.apache.kafka.clients.NetworkClient$TelemetrySender:1270 | principal=  | scenario= | operation= | correlation= | maybeUpdate | [Producer clientId=gateway-producer-c5c7499f-ae46-47dc-968f-e18f966b29cd-1] Give up sending telemetry request since no node is available
+2025-03-26 14:25:56.320 DEBUG | org.apache.kafka.clients.NetworkClient:934 | principal=  | scenario= | operation= | correlation= | handleCompletedReceives | [Consumer clientId=consumer-gatewayOfflinePooling-consumers-2, groupId=gatewayOfflinePooling-consumers] Received OFFSET_COMMIT response from node 2147483645 for request with header RequestHeader(apiKey=OFFSET_COMMIT, apiVersion=9, clientId=consumer-gatewayOfflinePooling-consumers-2, correlationId=1297, headerVersion=2): OffsetCommitResponseData(throttleTimeMs=0, topics=[OffsetCommitResponseTopic(name='otherinb_offline_gateway_pooling', partitions=[OffsetCommitResponsePartition(partitionIndex=0, errorCode=0), OffsetCommitResponsePartition(partitionIndex=1, errorCode=0), OffsetCommitResponsePartition(partitionIndex=2, errorCode=0), OffsetCommitResponsePartition(partitionIndex=3, errorCode=0)])])
+2025-03-26 14:25:56.320 DEBUG | org.apache.kafka.clients.consumer.internals.ConsumerCoordinator$OffsetCommitResponseHandler:1322 | principal=  | scenario= | operation= | correlation= | handle | [Consumer clientId=consumer-gatewayOfflinePooling-consumers-2, groupId=gatewayOfflinePooling-consumers] Committed offset 0 for partition otherinb_offline_gateway_pooling-0
+2025-03-26 14:25:56.320 DEBUG | org.apache.kafka.clients.consumer.internals.ConsumerCoordinator$OffsetCommitResponseHandler:1322 | principal=  | scenario= | operation= | correlation= | handle | [Consumer clientId=consumer-gatewayOfflinePooling-consumers-2, groupId=gatewayOfflinePooling-consumers] Committed offset 0 for partition otherinb_offline_gateway_pooling-1
+2025-03-26 14:25:56.320 DEBUG | org.apache.kafka.clients.consumer.internals.ConsumerCoordinator$OffsetCommitResponseHandler:1322 | principal=  | scenario= | operation= | correlation= | handle | [Consumer clientId=consumer-gatewayOfflinePooling-consumers-2, groupId=gatewayOfflinePooling-consumers] Committed offset 0 for partition otherinb_offline_gateway_pooling-2
+2025-03-26 14:25:56.320 DEBUG | org.apache.kafka.clients.consumer.internals.ConsumerCoordinator$OffsetCommitResponseHandler:1322 | principal=  | scenario= | operation= | correlation= | handle | [Consumer clientId=consumer-gatewayOfflinePooling-consumers-2, groupId=gatewayOfflinePooling-consumers] Committed offset 0 for partition otherinb_offline_gateway_pooling-3
+2025-03-26 14:25:56.320 DEBUG | org.apache.kafka.clients.consumer.internals.ConsumerCoordinator:1197 | principal=  | scenario= | operation= | correlation= | lambda$autoCommitOffsetsAsync$1 | [Consumer clientId=consumer-gatewayOfflinePooling-consumers-2, groupId=gatewayOfflinePooling-consumers] Completed asynchronous auto-commit of offsets {otherinb_offline_gateway_pooling-0=OffsetAndMetadata{offset=0, leaderEpoch=null, metadata=''}, otherinb_offline_gateway_pooling-1=OffsetAndMetadata{offset=0, leaderEpoch=null, metadata=''}, otherinb_offline_gateway_pooling-2=OffsetAndMetadata{offset=0, leaderEpoch=null, metadata=''}, otherinb_offline_gateway_pooling-3=OffsetAndMetadata{offset=0, leaderEpoch=null, metadata=''}}
+2025-03-26 14:25:56.365 DEBUG | org.apache.kafka.clients.producer.internals.TransactionManager:1057 | principal=  | scenario= | operation= | correlation= | enqueueRequest | [Producer clientId=gateway-producer-c5c7499f-ae46-47dc-968f-e18f966b29cd-1] Enqueuing transactional request InitProducerIdRequestData(transactionalId=null, transactionTimeoutMs=2147483647, producerId=-1, producerEpoch=-1)
