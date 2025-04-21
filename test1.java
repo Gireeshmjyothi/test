@@ -1,16 +1,18 @@
-import javax.crypto.*;
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.security.SecureRandom;
 
 public class AESCsvProcessor {
 
     private static final String ALGORITHM = "AES";
-    private static final String CIPHER_TRANSFORMATION = "AES/CBC/PKCS5Padding";
-    private static final int AES_KEY_SIZE = 32; // 256 bits = 32 bytes
+    private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
+    private static final int AES_KEY_SIZE = 32; // 256 bits
     private static final int IV_SIZE = 16;
 
     public static SecretKey getAESKey(String keyText) {
@@ -26,13 +28,13 @@ public class AESCsvProcessor {
         new SecureRandom().nextBytes(iv);
         IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-        Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
 
         try (FileInputStream fis = new FileInputStream(inputCsv);
              FileOutputStream fos = new FileOutputStream(outputEncrypted)) {
 
-            fos.write(iv); // Write IV at the beginning
+            fos.write(iv); // Save IV for decryption
 
             try (CipherOutputStream cos = new CipherOutputStream(fos, cipher)) {
                 fis.transferTo(cos);
@@ -45,7 +47,7 @@ public class AESCsvProcessor {
             byte[] iv = fis.readNBytes(IV_SIZE);
             IvParameterSpec ivSpec = new IvParameterSpec(iv);
 
-            Cipher cipher = Cipher.getInstance(CIPHER_TRANSFORMATION);
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
             cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
 
             try (CipherInputStream cis = new CipherInputStream(fis, cipher);
