@@ -1,24 +1,23 @@
-import javax.crypto.Cipher;
-import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.*;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.security.SecureRandom;
 
-public class AESCsvProcessor {
+public class AESGcmCsvProcessor {
 
     private static final String ALGORITHM = "AES";
-    private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
+    private static final String TRANSFORMATION = "AES/GCM/NoPadding";
     private static final int AES_KEY_SIZE = 32; // 256 bits
-    private static final int IV_SIZE = 16;
+    private static final int IV_SIZE = 12; // 96 bits (recommended for GCM)
+    private static final int TAG_LENGTH_BIT = 128;
 
     public static SecretKey getAESKey(String keyText) {
         byte[] keyBytes = keyText.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length != AES_KEY_SIZE) {
-            throw new IllegalArgumentException("Key must be exactly 32 bytes (256 bits) long.");
+            throw new IllegalArgumentException("Key must be exactly 32 bytes (256 bits).");
         }
         return new SecretKeySpec(keyBytes, ALGORITHM);
     }
@@ -26,15 +25,15 @@ public class AESCsvProcessor {
     public static void encryptCsv(File inputCsv, File outputEncrypted, SecretKey secretKey) throws Exception {
         byte[] iv = new byte[IV_SIZE];
         new SecureRandom().nextBytes(iv);
-        IvParameterSpec ivSpec = new IvParameterSpec(iv);
+        GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
 
         Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec);
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, spec);
 
         try (FileInputStream fis = new FileInputStream(inputCsv);
              FileOutputStream fos = new FileOutputStream(outputEncrypted)) {
 
-            fos.write(iv); // Save IV for decryption
+            fos.write(iv); // write IV at the beginning
 
             try (CipherOutputStream cos = new CipherOutputStream(fos, cipher)) {
                 fis.transferTo(cos);
@@ -44,11 +43,12 @@ public class AESCsvProcessor {
 
     public static void decryptCsv(File inputEncrypted, File outputCsv, SecretKey secretKey) throws Exception {
         try (FileInputStream fis = new FileInputStream(inputEncrypted)) {
+
             byte[] iv = fis.readNBytes(IV_SIZE);
-            IvParameterSpec ivSpec = new IvParameterSpec(iv);
+            GCMParameterSpec spec = new GCMParameterSpec(TAG_LENGTH_BIT, iv);
 
             Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, ivSpec);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, spec);
 
             try (CipherInputStream cis = new CipherInputStream(fis, cipher);
                  FileOutputStream fos = new FileOutputStream(outputCsv)) {
@@ -57,36 +57,25 @@ public class AESCsvProcessor {
         }
     }
 }
-
 import javax.crypto.SecretKey;
 import java.io.File;
 
-public class AESCsvProcessorTest {
-    public static void main(String[] args) {
-        try {
-            // Your 256-bit AES key (must be 32 characters)
-            String aesKey = "0123456789ABCDEF0123456789ABCDEF"; // 32 chars
+public class Main {
+    public static void main(String[] args) throws Exception {
+        String keyText = "12345678901234567890123456789012"; // 32 chars = 256-bit key
 
-            // Prepare files
-            File originalCsv = new File("example.csv");
-            File encryptedFile = new File("example.csv.enc");
-            File decryptedCsv = new File("example_decrypted.csv");
+        SecretKey key = AESGcmCsvProcessor.getAESKey(keyText);
 
-            // Get key
-            SecretKey secretKey = AESCsvProcessor.getAESKey(aesKey);
+        File inputCsv = new File("sample.csv");
+        File encryptedFile = new File("sample_encrypted.aes");
+        File decryptedFile = new File("sample_decrypted.csv");
 
-            // Encrypt
-            System.out.println("Encrypting CSV...");
-            AESCsvProcessor.encryptCsv(originalCsv, encryptedFile, secretKey);
-            System.out.println("Encryption complete: " + encryptedFile.getAbsolutePath());
+        // Encrypt CSV
+        AESGcmCsvProcessor.encryptCsv(inputCsv, encryptedFile, key);
+        System.out.println("Encryption done.");
 
-            // Decrypt
-            System.out.println("Decrypting CSV...");
-            AESCsvProcessor.decryptCsv(encryptedFile, decryptedCsv, secretKey);
-            System.out.println("Decryption complete: " + decryptedCsv.getAbsolutePath());
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        // Decrypt back to CSV
+        AESGcmCsvProcessor.decryptCsv(encryptedFile, decryptedFile, key);
+        System.out.println("Decryption done.");
     }
 }
