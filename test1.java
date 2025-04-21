@@ -57,3 +57,36 @@ public class AESCsvProcessor {
         }
     }
 }
+
+import javax.crypto.SecretKey;
+import java.io.File;
+
+public class AESCsvProcessorTest {
+    public static void main(String[] args) {
+        try {
+            // Your 256-bit AES key (must be 32 characters)
+            String aesKey = "0123456789ABCDEF0123456789ABCDEF"; // 32 chars
+
+            // Prepare files
+            File originalCsv = new File("example.csv");
+            File encryptedFile = new File("example.csv.enc");
+            File decryptedCsv = new File("example_decrypted.csv");
+
+            // Get key
+            SecretKey secretKey = AESCsvProcessor.getAESKey(aesKey);
+
+            // Encrypt
+            System.out.println("Encrypting CSV...");
+            AESCsvProcessor.encryptCsv(originalCsv, encryptedFile, secretKey);
+            System.out.println("Encryption complete: " + encryptedFile.getAbsolutePath());
+
+            // Decrypt
+            System.out.println("Decrypting CSV...");
+            AESCsvProcessor.decryptCsv(encryptedFile, decryptedCsv, secretKey);
+            System.out.println("Decryption complete: " + decryptedCsv.getAbsolutePath());
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
