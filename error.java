@@ -2,3 +2,6 @@
            connectionProperties.put("user", user);
            connectionProperties.put("password", password);
            connectionProperties.put("driver", "oracle.jdbc.OracleDriver");
+
+
+java.lang.RuntimeException: oracle.jdbc.OracleDriver
