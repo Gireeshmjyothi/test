@@ -1,40 +1,78 @@
 dependencies {
-    // Spring Boot Web + Tomcat (provided as runtime)
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+    implementation 'org.apache.spark:spark-core_2.13:3.5.1'
+    implementation 'org.apache.spark:spark-sql_2.13:3.5.1'
+    implementation 'com.zaxxer:HikariCP:5.0.0'  // HikariCP connection pool
+    implementation 'org.postgresql:postgresql:42.3.5'  // PostgreSQL JDBC driver
+}
 
-    // JSP support
-    implementation 'org.apache.tomcat.embed:tomcat-embed-jasper:10.1.20'
-    implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.1'
-    implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl:3.0.1'
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 
-    // Oracle JDBC Driver
-    implementation 'com.oracle.database.jdbc:ojdbc11:23.5.0.24.07' // Latest as of April 2025
+import javax.sql.DataSource;
 
-    // Apache Spark Core & SQL - Scala 2.13 compatible with Java 21
-    implementation('org.apache.spark:spark-core_2.13:3.5.1') {
-        exclude group: 'org.eclipse.jetty'
-        exclude group: 'javax.servlet'
-        exclude group: 'jakarta.servlet'
-    }
-    implementation('org.apache.spark:spark-sql_2.13:3.5.1') {
-        exclude group: 'org.eclipse.jetty'
-        exclude group: 'javax.servlet'
-        exclude group: 'jakarta.servlet'
-    }
+public class DataSourceManager {
 
-    // Logging - Log4j2 (Spring Boot 3 uses slf4j 2.x under the hood)
-    implementation 'org.apache.logging.log4j:log4j-api:2.22.1'
-    implementation 'org.apache.logging.log4j:log4j-core:2.22.1'
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.22.1'
+    private static HikariDataSource dataSource;
 
-    // Servlet API - only needed for compile, already included in runtime
-    compileOnly 'javax.servlet:javax.servlet-api:4.0.1'
+    public static DataSource getDataSource() {
+        if (dataSource == null) {
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl("jdbc:postgresql://pg-36cdad80-rajput-d178.f.aivencloud.com:10052/defaultdb");
+            config.setUsername("avnadmin");
+            config.setPassword("AVNS__gIHpnNG1mpYDSlt9pT");
+            config.setDriverClassName("org.postgresql.Driver");
+            config.setMaximumPoolSize(10);  // Set the pool size based on your requirement
+            config.setMinimumIdle(5);  // Set minimum idle connections
+            config.setIdleTimeout(30000);  // Set idle timeout
+            config.setConnectionTimeout(20000);  // Set connection timeout
 
-    // Lombok
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
-
-    // Testing
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+            dataSource = new HikariDataSource(config);
         }
+        return dataSource;
+    }
+
+    // Method to close the DataSource when the application shuts down
+    public static void close() {
+        if (dataSource != null) {
+            dataSource.close();
+        }
+    }
+}
+
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Properties;
+
+public class SparkDatabaseService {
+
+    private static final SparkSession sparkSession = SparkSession.builder()
+            .appName("SparkDatabaseApp")
+            .master("local[*]")
+            .getOrCreate();
+
+    private static final DataSource dataSource = DataSourceManager.getDataSource();
+
+    public Dataset<Row> getDbDataSet() {
+        // Obtain a connection from HikariCP pool
+        try (Connection connection = dataSource.getConnection()) {
+            Properties connectionProperties = new Properties();
+            connectionProperties.put("user", "avnadmin");
+            connectionProperties.put("password", "AVNS__gIHpnNG1mpYDSlt9pT");
+
+            // Load dataset from PostgreSQL using HikariCP connection pool
+            String table = "employee";
+            return sparkSession.read()
+                    .jdbc("jdbc:postgresql://pg-36cdad80-rajput-d178.f.aivencloud.com:10052/defaultdb", 
+                        table, 
+                        connectionProperties);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+}
