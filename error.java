@@ -2,3 +2,4 @@ ERROR org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].[dispatche
 java.lang.ClassNotFoundException: scala.Serializable
 	at jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641) ~[?:?]
 	at jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188) ~[?:?]
+implementation 'org.scala-lang:scala-library:2.12.15'
