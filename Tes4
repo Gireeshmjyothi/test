@@ -80,40 +80,32 @@ public class ComparisonService {
 
 package com.rajput.service;
 
-import com.rajput.dto.MerchantOrderPayment;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.util.ArrayList;
-import java.util.List;
+public List<MerchantOrderPaymentDto> readCSVByJava(String filePath) {
+    List<MerchantOrderPaymentDto> records = new ArrayList<>();
 
-@Service
-@Slf4j
-public class FileProcessorService {
+    try (Reader reader = new FileReader(filePath);
+         CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
 
-    public List<MerchantOrderPayment> readCsv(String filePath) {
-        public List<MerchantOrderPaymentDto> readCSVByJava(String filePath) {
-        List<MerchantOrderPaymentDto> records = new ArrayList<>();
-        String line;
-        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
-            String header = br.readLine(); // skip header
-            while ((line = br.readLine()) != null) {
-                String[] fields = line.split(",");
+        for (CSVRecord csvRecord : csvParser) {
+            MerchantOrderPaymentDto mop = new MerchantOrderPaymentDto();
+            mop.setMId(csvRecord.get(0));
+            mop.setOrderRefNumber(csvRecord.get(1));
+            mop.setSbiOrderRefNumber(csvRecord.get(2));
+            mop.setAtrnNumber(csvRecord.get(3));
 
-                MerchantOrderPaymentDto mop = new MerchantOrderPaymentDto();
-                mop.setMId(fields[0]);
-                mop.setOrderRefNumber(fields[1]);
-                mop.setSbiOrderRefNumber(fields[2]);
-                mop.setAtrnNumber(fields[3]);
-                mop.setDebitAmount(BigDecimal.valueOf(Double.parseDouble(fields[13])));
+            String amount = csvRecord.get(13);
+            mop.setDebitAmount(new BigDecimal(amount.isEmpty() ? "0" : amount));
 
-                records.add(mop);
-            }
-        } catch (Exception e) {
-            log.error("Error reading file: {}", e.getMessage());
+            records.add(mop);
         }
-        return records;
+
+    } catch (Exception e) {
+        log.error("Error reading CSV file", e);  // full stack trace
     }
+
+    return records;
 }
