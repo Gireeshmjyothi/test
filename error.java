@@ -1,91 +1,30 @@
-plugins {
-    id 'java'
-    id 'war'
-    id 'org.springframework.boot' version '3.3.10'
-    id 'io.spring.dependency-management' version '1.1.7'
-}
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvValidationException;
 
-group = 'com.rajput'
-version = '0.0.1'
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+public List<MerchantOrderPaymentDto> readCSVByJava(String filePath) {
+    List<MerchantOrderPaymentDto> records = new ArrayList<>();
+
+    try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+        String[] fields;
+        reader.readNext(); // Skip header
+
+        while ((fields = reader.readNext()) != null) {
+            if (fields.length >= 5) {
+                MerchantOrderPaymentDto mop = new MerchantOrderPaymentDto();
+                mop.setMId(fields[0].trim());
+                mop.setOrderRefNumber(fields[1].trim());
+                mop.setSbiOrderRefNumber(fields[2].trim());
+                mop.setAtrnNumber(fields[3].trim());
+
+                String debitStr = fields[4].trim();
+                mop.setDebitAmount(debitStr.isEmpty() ? BigDecimal.ZERO : new BigDecimal(debitStr));
+
+                records.add(mop);
+            }
+        }
+    } catch (IOException | CsvValidationException e) {
+        log.error("Error reading CSV: {}", e.getMessage(), e);
     }
+
+    return records;
 }
-
-repositories {
-    mavenCentral()
-}
-configurations.configureEach {
-    exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
-    exclude group: 'ch.qos.logback', module: 'logback-classic'
-    exclude group: 'ch.qos.logback', module: 'logback-core'
-}
-
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-
-    implementation 'org.apache.tomcat.embed:tomcat-embed-jasper:10.1.20'
-    implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.1'
-    implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl:3.0.1'
-
-    implementation "com.oracle.database.jdbc:ojdbc11:23.5.0.24.07"
-
-    implementation "javax.persistence:javax.persistence-api:2.2"
-    implementation 'com.opencsv:opencsv: 5.7.1'
-
-    //Spark-core dependency
-    implementation('org.apache.spark:spark-core_2.13:3.5.1') {
-        exclude group: 'org.eclipse.jetty'
-        exclude group: 'org.eclipse.jetty.aggregate'
-        exclude group: 'org.eclipse.jetty.jetty'
-        exclude group: 'javax.servlet'
-    }
-    //Spark-sql dependency
-    implementation('org.apache.spark:spark-sql_2.13:3.5.1') {
-        exclude group: 'org.eclipse.jetty'
-        exclude group: 'javax.servlet'
-    }
-    //Spark-excel dependency
-    implementation 'com.crealytics:spark-excel_2.13:3.5.0_0.20.3'
-
-    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
-
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-
-    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
-
-    implementation 'javax.servlet:javax.servlet-api:4.0.1'
-
-
-
-    //mapStruct
-    implementation 'org.mapstruct:mapstruct:1.5.2.Final'
-    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-bootRun {
-    jvmArgs += [
-            "--add-exports", "java.base/sun.nio.ch=ALL-UNNAMED"
-    ]
-}
-war {
-
-}
-//bootWar {
-//    archiveFileName = 'springboot-jsp-spark-demo.war'
-//}
-//java --add-exports=java.base/sun.nio.ch=ALL-UNNAMED -jar build/libs/your-app.war
