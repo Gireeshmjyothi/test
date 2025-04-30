@@ -1,128 +1,72 @@
-public void validateRequiredColumns(Dataset<Row> fileDataset, List<String> requiredColumns) {
-        List<String> datasetColumns = Arrays.asList(fileDataset.columns());
-        for (String required : requiredColumns) {
-            if (!datasetColumns.contains(required)) {
-                throw new RuntimeException("Missing required column: " + required);
-            }
-        }
-    }
-
-    public void validateNoNulls(Dataset<Row> fileDataset, List<String> importantColumns) {
-        importantColumns.forEach(col -> {
-            long nullCount = fileDataset.filter(fileDataset.col(col).isNull()).count();
-            if (nullCount > 0) {
-                throw new RuntimeException("Null values found in column: " + col);
-            }
-        });
-    }
-
-    public void validateNoDuplicates(Dataset<Row> fileDataset, List<String> uniqueColumns) {
-        Dataset<Row> duplicates = fileDataset.groupBy(uniqueColumns.stream()
-                .map(functions::col).toArray(Column[]::new))
-                .count()
-                .filter("count > 1");
-
-        if (duplicates.count() > 0) {
-            throw new RuntimeException("Duplicate rows found based on columns: " + uniqueColumns);
-        }
-    }
-
-    public void validateRowCount(Dataset<Row> fileDataset, long minRows) {
-        if (fileDataset.count() < minRows) {
-            throw new RuntimeException("File has less than " + minRows + " rows");
-        }
-    }
-
-
 package com.rajput.service;
 
-import com.rajput.dto.Employee;
+import com.rajput.dto.MerchantOrderPayment;
 import com.rajput.dto.ResponseDto;
-import com.rajput.dto.SummaryDto;
 import com.rajput.dto.UnMatchedDto;
+import com.rajput.util.jdbcQuery.JdbcQuery;
+import com.rajput.validator.FileValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.spark.sql.*;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Properties;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-@Component
+@Service
 @RequiredArgsConstructor
 @Slf4j
-public class SparkService {
-    private final SparkSession sparkSession;
-    private final Encoder<Employee> employeeEncoder;
+public class ComparisonService {
+
+    private final JdbcReaderService jdbcReaderService;
+    private final FileProcessorService fileProcessorService;
 
     public ResponseDto process() {
-        log.info("🚀 POC Application started via CommandLineRunner!");
         long startTime = System.currentTimeMillis();
+
         ResponseDto responseDto = new ResponseDto();
         List<UnMatchedDto> unMatchedRecords = new ArrayList<>();
-        Dataset<Employee> datasetRowDb = getDbDataSet();
-        Dataset<Row> datasetRowFile = getFileDataset("data/employeeWithPipe.txt", "txt", "|");
-//        datasetRowFile = datasetRowFile.withColumnRenamed("fullName", "name");
-        SummaryDto summaryDto = getFileSummary(datasetRowFile);
-        datasetRowFile.summary().show();
-        datasetRowFile.show();
-        datasetRowFile.as(employeeEncoder);
-        log.info("Matched");
-        responseDto.setFileRecordCount(datasetRowFile.count());
-        var matchedWithDB = datasetRowFile.join(datasetRowDb, new String[]{"id", "salary"}, "inner")
-                .select(
-                        datasetRowFile.col("id").alias("id"),
-                        datasetRowFile.col("name"),
-                        datasetRowFile.col("salary")
-                );
-        matchedWithDB.show();
-//        matchedWithDB.collectAsList().forEach(employee -> log.info(String.valueOf(employee)));
-        responseDto.setMatchedRecords(matchedWithDB.as(employeeEncoder).collectAsList());
-        log.info("Unmatched: updated or added records");
-        var missMatchedWithDB = datasetRowFile.join(datasetRowDb, new String[]{"id", "salary"}, "leftanti").as(Encoders.bean(Employee.class));
-        missMatchedWithDB.show();
 
-        missMatchedWithDB.collectAsList().forEach(fileRow -> {
-            log.info("File Record: {}", fileRow);
-            Dataset<Employee> fileRowDs = datasetRowDb.filter("id = " + fileRow.getId());
+        // Load DB data
+        String query = JdbcQuery.getYesterdayQuery("MERCHANT_ORDER_PAYMENTS", System.currentTimeMillis());
+        List<MerchantOrderPayment> dbRecords = jdbcReaderService.readJdbcQuery(query);
+        Map<String, MerchantOrderPayment> dbMap = dbRecords.stream()
+                .filter(r -> r.getAtrnNum() != null)
+                .collect(Collectors.toMap(MerchantOrderPayment::getAtrnNum, Function.identity(), (a, b) -> a));
+
+        // Load file data
+        List<MerchantOrderPayment> fileRecords = fileProcessorService.readCsv("data/merchantOrderPayment.csv");
+        Map<String, MerchantOrderPayment> fileMap = fileRecords.stream()
+                .filter(r -> r.getAtrnNum() != null)
+                .collect(Collectors.toMap(MerchantOrderPayment::getAtrnNum, Function.identity(), (a, b) -> a));
+
+        responseDto.setFileRecordCount((long) fileRecords.size());
+
+        // Find matched records (in both DB and file)
+        List<MerchantOrderPayment> matched = fileRecords.stream()
+                .filter(r -> dbMap.containsKey(r.getAtrnNum()))
+                .collect(Collectors.toList());
+        responseDto.setMatchedRecords(matched);
+
+        // Find unmatched records (in file but not in DB)
+        List<MerchantOrderPayment> unmatched = fileRecords.stream()
+                .filter(r -> !dbMap.containsKey(r.getAtrnNum()))
+                .collect(Collectors.toList());
+
+        for (MerchantOrderPayment fileRecord : unmatched) {
             UnMatchedDto unMatchedDto = new UnMatchedDto();
-            unMatchedDto.setDbEmployee(fileRow);
-            if (fileRowDs.count() == 0) {
-                log.info("New record: {}", fileRow.getId());
-                unMatchedDto.setNew(true);
-            } else {
-                log.info("Updated, DB record: {}", fileRowDs.collectAsList());
-            }
+            unMatchedDto.setDbMerchantOrderPayment(fileRecord);
             unMatchedRecords.add(unMatchedDto);
-        });
+        }
+
         responseDto.setUnMatchedRecords(unMatchedRecords);
-        responseDto.setTimeToProcessed(formatMillis(System.currentTimeMillis()-startTime));
+
+        long endTime = System.currentTimeMillis();
+        responseDto.setTimeToProcessed(formatMillis(endTime - startTime));
+
         return responseDto;
     }
 
-    private Dataset<Employee> getDbDataSet() {
-        /*String url = "jdbc:postgresql://pg-36cdad80-rajput-d178.f.aivencloud.com:10052/defaultdb";
-        String user = "avnadmin";
-        String password = "AVNS__gIHpnNG1mpYDSlt9pT";
-        String table = "employee";
-        Properties connectionProperties = new Properties();
-        connectionProperties.put("user", user);
-        connectionProperties.put("password", password);
-        connectionProperties.put("driver", "org.postgresql.Driver");
-        Dataset<Row> datasetRow = sparkSession.read().option("header", true).option("inferSchema", true)
-                .jdbc(url, table, connectionProperties);*/
-        Dataset<Row> datasetRow = sparkSession.read().option("header", true).option("inferSchema", true)
-                .csv("data/employeeDb.csv").cache();
-         Dataset<Row> columnUpdatedData = datasetRow.withColumnRenamed("fullName", "name");
-        return columnUpdatedData.as(employeeEncoder);
-    }
-
-    private Dataset<Employee> getFileDataset() {
-        return sparkSession.read().option("header", true).option("inferSchema", true)
-                .csv("data/employee.csv").cache().as(employeeEncoder);
-    }
     public static String formatMillis(long millis) {
         long hours = millis / (1000 * 60 * 60);
         long minutes = (millis / (1000 * 60)) % 60;
@@ -131,68 +75,45 @@ public class SparkService {
 
         return String.format("%02d:%02d:%02d.%03d", hours, minutes, seconds, ms);
     }
-
-    public Dataset<Row> getFileDataset(String path, String extension, String delimiter) {
-        return switch (extension.toLowerCase(Locale.ROOT)) {
-            case "csv" -> sparkSession.read()
-                    .option("header", "true")
-                    .option("inferSchema", "true")
-                    .csv(path)
-                    .cache();
-            case "txt" -> {
-                if (delimiter == null || delimiter.isEmpty()) {
-                    throw new IllegalArgumentException("Delimiter must be provided for .txt files");
-                }
-                yield sparkSession.read()
-                        .option("header", "true")
-                        .option("delimiter", delimiter)
-                        .option("inferSchema", "true")
-                        .csv(path)
-                        .cache();
-            }
-            case "xlsx", "xls" -> sparkSession.read()
-                    .format("excel")
-                    .option("header", "true")
-                    .option("inferSchema", "true")
-                    .option("dataAddress", "'Sheet 1'!A1")  // default sheet
-                    .load(path)
-                    .cache();
-            default -> throw new IllegalArgumentException("Unsupported file extension: " + extension);
-        };
-    }
-
-    //TODO-future use
-    private String getFileExtension(String filePath) {
-        int lastIndex = filePath.lastIndexOf('.');
-        if (lastIndex == -1) {
-            throw new IllegalArgumentException("File has no extension: " + filePath);
-        }
-        return filePath.substring(lastIndex + 1);
-    }
-
-    private SummaryDto getFileSummary(Dataset<Row> fileDataset) {
-        fileDataset.createOrReplaceTempView("file_data");
-
-        // Use Spark SQL for convenience
-        Row summaryRow = sparkSession.sql("""
-        SELECT
-            COUNT(*) as totalRecords,
-            COUNT(DISTINCT id) as uniqueEmployeeIds,
-            AVG(salary) as averageSalary,
-            MAX(salary) as maxSalary,
-            MIN(salary) as minSalary
-        FROM file_data
-    """).first();
-
-        return SummaryDto.builder()
-                .totalRecords(summaryRow.getAs("totalRecords"))
-                .uniqueEmployeeIds(summaryRow.getAs("uniqueEmployeeIds"))
-                .averageSalary(summaryRow.getAs("averageSalary"))
-                .maxSalary(summaryRow.getAs("maxSalary"))
-                .minSalary(summaryRow.getAs("minSalary"))
-                .build();
-    }
 }
 
 
-implementation 'com.crealytics:spark-excel_2.13:3.5.0_0.20.3'
+package com.rajput.service;
+
+import com.rajput.dto.MerchantOrderPayment;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+@Slf4j
+public class FileProcessorService {
+
+    public List<MerchantOrderPayment> readCsv(String filePath) {
+        List<MerchantOrderPayment> records = new ArrayList<>();
+        String line;
+
+        try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
+            String header = br.readLine(); // skip header
+            while ((line = br.readLine()) != null) {
+                String[] fields = line.split(",");
+
+                MerchantOrderPayment mop = new MerchantOrderPayment();
+                mop.setMid(fields[0]);
+                mop.setOrderRefNumber(fields[1]);
+                mop.setSbiOrderRefNumber(fields[2]);
+                mop.setAtrnNum(fields[3]);
+                mop.setDebitAmt(Double.parseDouble(fields[4]));
+
+                records.add(mop);
+            }
+        } catch (Exception e) {
+            log.error("Error reading file: {}", e.getMessage());
+        }
+        return records;
+    }
+}
