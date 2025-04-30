@@ -27,3 +27,6 @@ public List<MerchantOrderPaymentDto> readCSVByJava(String filePath) {
 
     return records;
 }
+
+"MID","ORDER_REF_NUMBER","SBI_ORDER_REF_NUMBER","ATRN_NUM","DEBIT_AMT"
+"1000003","nmebR","1F220096E82D473193FA","NB003174306617662538",2
