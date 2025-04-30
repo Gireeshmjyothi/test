@@ -1,32 +1,30 @@
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvValidationException;
 
 public List<MerchantOrderPaymentDto> readCSVByJava(String filePath) {
     List<MerchantOrderPaymentDto> records = new ArrayList<>();
 
-    try (Reader reader = new FileReader(filePath);
-         CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader())) {
+    try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+        String[] fields;
+        reader.readNext(); // Skip header
 
-        for (CSVRecord csvRecord : csvParser) {
-            MerchantOrderPaymentDto mop = new MerchantOrderPaymentDto();
-            mop.setMId(csvRecord.get(0));
-            mop.setOrderRefNumber(csvRecord.get(1));
-            mop.setSbiOrderRefNumber(csvRecord.get(2));
-            mop.setAtrnNumber(csvRecord.get(3));
+        while ((fields = reader.readNext()) != null) {
+            if (fields.length >= 5) {
+                MerchantOrderPaymentDto mop = new MerchantOrderPaymentDto();
+                mop.setMId(fields[0].trim());
+                mop.setOrderRefNumber(fields[1].trim());
+                mop.setSbiOrderRefNumber(fields[2].trim());
+                mop.setAtrnNumber(fields[3].trim());
 
-            String amount = csvRecord.get(13);
-            mop.setDebitAmount(new BigDecimal(amount.isEmpty() ? "0" : amount));
+                String debitStr = fields[4].trim();
+                mop.setDebitAmount(debitStr.isEmpty() ? BigDecimal.ZERO : new BigDecimal(debitStr));
 
-            records.add(mop);
+                records.add(mop);
+            }
         }
-
-    } catch (Exception e) {
-        log.error("Error reading CSV file", e);  // full stack trace
+    } catch (IOException | CsvValidationException e) {
+        log.error("Error reading CSV: {}", e.getMessage(), e);
     }
 
     return records;
 }
-
-"MID","ORDER_REF_NUMBER","SBI_ORDER_REF_NUMBER","ATRN_NUM","DEBIT_AMT"
-"1000003","nmebR","1F220096E82D473193FA","NB003174306617662538",2
