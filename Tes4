@@ -94,20 +94,20 @@ import java.util.List;
 public class FileProcessorService {
 
     public List<MerchantOrderPayment> readCsv(String filePath) {
-        List<MerchantOrderPayment> records = new ArrayList<>();
+        public List<MerchantOrderPaymentDto> readCSVByJava(String filePath) {
+        List<MerchantOrderPaymentDto> records = new ArrayList<>();
         String line;
-
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String header = br.readLine(); // skip header
             while ((line = br.readLine()) != null) {
                 String[] fields = line.split(",");
 
-                MerchantOrderPayment mop = new MerchantOrderPayment();
-                mop.setMid(fields[0]);
+                MerchantOrderPaymentDto mop = new MerchantOrderPaymentDto();
+                mop.setMId(fields[0]);
                 mop.setOrderRefNumber(fields[1]);
                 mop.setSbiOrderRefNumber(fields[2]);
-                mop.setAtrnNum(fields[3]);
-                mop.setDebitAmt(Double.parseDouble(fields[4]));
+                mop.setAtrnNumber(fields[3]);
+                mop.setDebitAmount(BigDecimal.valueOf(Double.parseDouble(fields[13])));
 
                 records.add(mop);
             }
