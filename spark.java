@@ -18,6 +18,16 @@ Start a worker process and connect to the master (you’ll get the master URL fr
 You’ll see:
 starting org.apache.spark.deploy.worker.Worker, logging to ...\logs\spark-username-org.apache.spark.deploy.worker.Worker-1-MACHINE.out
 
+implementation('org.apache.spark:spark-core_2.13:3.5.5') {
+    exclude group: 'org.eclipse.jetty'
+    exclude group: 'javax.servlet'
+}
+implementation('org.apache.spark:spark-sql_2.13:3.5.5') {
+    exclude group: 'org.eclipse.jetty'
+    exclude group: 'javax.servlet'
+}
+	
+
 
  Stop Master:
 %SPARK_HOME%\sbin\stop-master.cmd
