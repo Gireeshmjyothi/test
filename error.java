@@ -1,90 +1,32 @@
+spark.app.name=RnSSparkPOC
+spark.master=local[*]
 
-ANTLR Runtime version 4.9.3 used for parser compilation does not match the current runtime version 4.13.0
-12:33:17.377 [http-nio-8080-exec-1] ERROR org.apache.catalina.core.ContainerBase.[Tomcat].[localhost].[/].[dispatcherServlet] - Servlet.service() for servlet [dispatcherServlet] in context with path [] threw exception [Handler dispatch failed: java.lang.ExceptionInInitializerError] with root cause
-java.io.InvalidClassException: org.antlr.v4.runtime.atn.ATN; Could not deserialize ATN with version 3 (expected 4).
-	at org.antlr.v4.runtime.atn.ATNDeserializer.deserialize(ATNDeserializer.java:56) ~[antlr4-runtime-4.13.0.jar:4.13.0]
-	at org.antlr.v4.runtime.atn.ATNDeserializer.deserialize(ATNDeserializer.java:48) ~[antlr4-runtime-4.13.0.jar:4.13.0]
-	at org.apache.spark.sql.catalyst.parser.SqlBaseLexer.<clinit>(SqlBaseLexer.java:1834) ~[spark-sql-api_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.parser.AbstractParser.parse(parsers.scala:58) ~[spark-sql-api_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.parser.AbstractSqlParser.parseMultipartIdentifier(AbstractSqlParser.scala:54) ~[spark-catalyst_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.analysis.UnresolvedAttribute$.apply(unresolved.scala:259) ~[spark-catalyst_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.expressions.VirtualColumn$.<clinit>(namedExpressions.scala:471) ~[spark-catalyst_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$init$(ColumnResolutionHelper.scala:101) ~[spark-catalyst_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.analysis.Analyzer.<init>(Analyzer.scala:188) ~[spark-catalyst_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.internal.BaseSessionStateBuilder$$anon$1.<init>(BaseSessionStateBuilder.scala:185) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.internal.BaseSessionStateBuilder.analyzer(BaseSessionStateBuilder.scala:185) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.internal.BaseSessionStateBuilder.$anonfun$build$2(BaseSessionStateBuilder.scala:375) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.internal.SessionState.analyzer$lzycompute(SessionState.scala:92) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.internal.SessionState.analyzer(SessionState.scala:92) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.$anonfun$analyzed$1(QueryExecution.scala:77) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.catalyst.QueryPlanningTracker.measurePhase(QueryPlanningTracker.scala:138) ~[spark-catalyst_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.$anonfun$executePhase$2(QueryExecution.scala:219) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution$.withInternalError(QueryExecution.scala:546) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.$anonfun$executePhase$1(QueryExecution.scala:219) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.SparkSession.withActive(SparkSession.scala:900) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.executePhase(QueryExecution.scala:218) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.analyzed$lzycompute(QueryExecution.scala:77) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.analyzed(QueryExecution.scala:74) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.execution.QueryExecution.assertAnalyzed(QueryExecution.scala:66) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.Dataset$.$anonfun$ofRows$1(Dataset.scala:91) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.SparkSession.withActive(SparkSession.scala:900) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.Dataset$.ofRows(Dataset.scala:89) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.SparkSession.baseRelationToDataFrame(SparkSession.scala:446) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.DataFrameReader.loadV1Source(DataFrameReader.scala:229) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.DataFrameReader.$anonfun$load$2(DataFrameReader.scala:211) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at scala.Option.getOrElse(Option.scala:201) ~[spark-excel_2.13-3.5.0_0.20.3.jar:3.5.0_0.20.3]
-	at org.apache.spark.sql.DataFrameReader.load(DataFrameReader.scala:211) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.DataFrameReader.load(DataFrameReader.scala:172) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at org.apache.spark.sql.DataFrameReader.jdbc(DataFrameReader.scala:249) ~[spark-sql_2.13-3.5.1.jar:3.5.1]
-	at com.rajput.service.JdbcReaderService.readJdbcQuery(JdbcReaderService.java:24) ~[main/:?]
-	at com.rajput.service.SparkService.getDbDataSet(SparkService.java:84) ~[main/:?]
-	at com.rajput.service.SparkService.process(SparkService.java:43) ~[main/:?]
-	at com.rajput.controller.SparkController.getSparkProcessedData(SparkController.java:21) ~[main/:?]
-	at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?]
-	at java.lang.reflect.Method.invoke(Method.java:580) ~[?:?]
-	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:255) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:188) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:926) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:831) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:903) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:564) ~[tomcat-embed-core-10.1.39.jar:6.0]
-	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885) ~[spring-webmvc-6.1.18.jar:6.1.18]
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658) ~[tomcat-embed-core-10.1.39.jar:6.0]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:195) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51) ~[tomcat-embed-websocket-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116) ~[spring-web-6.1.18.jar:6.1.18]
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:483) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:344) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:397) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.39.jar:10.1.39]
-	at java.lang.Thread.run(Thread.java:1583) [?:?]
+spring.mvc.view.prefix=/WEB-INF/views/
+spring.mvc.view.suffix=.jsp
+server.servlet.jsp.init-parameters.development=true
+
+spring.datasource.url=jdbc:oracle:thin:@76.322.654.433:2323:epaydbdev1
+spring.datasource.username=TEST
+spring.datasource.password=TEST
+spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+spring.datasource.liquibase=false
+spring.datasource.hikari.minimum-idle=5
+spring.datasource.hikari.idle-timeout=30000
+spring.datasource.hikari.max-lifetime=2000000
+
+
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.show_sql=true
+
+#DB connection
+jdbc.url=jdbc:oracle:thin:@76.322.654.433:2323:epaydbdev1
+jdbc.userName=TEST
+jdbc.password=TEST
+jdbc.driver=oracle.jdbc.OracleDriver
+
+
+#spark.master can be:
+#	local[*] for local mode
+#	spark://host:port for Spark Standalone cluster
+#	yarn for Hadoop YARN cluster
+#	k8s:// for Kubernetes
