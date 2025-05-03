@@ -1,49 +1,66 @@
 public ResponseDto process() {
-        long startTime = System.currentTimeMillis();
+    long startTime = System.currentTimeMillis();
 
-        ResponseDto responseDto = new ResponseDto();
-        List<UnMatchedDto> unMatchedRecords = new ArrayList<>();
+    ResponseDto responseDto = new ResponseDto();
+    List<UnMatchedDto> unMatchedRecords = new ArrayList<>();
 
-        // Load DB data
-//        String query = JdbcQuery.getYesterdayQuery("MERCHANT_ORDER_PAYMENTS", System.currentTimeMillis());
-        long currentMillis = System.currentTimeMillis();
-        long oneDayBefore = currentMillis - 24 * 60 * 60 * 1000;
-        List<MerchantOrderPaymentDto> dbRecords = merchantOrderPaymentDao.getMerchantOrderPayments(1745489357404L, 1745489357404L);
-        Map<String, MerchantOrderPaymentDto> dbMap = dbRecords.stream()
-                .filter(r -> r.getAtrnNumber() != null)
-                .collect(Collectors.toMap(MerchantOrderPaymentDto::getAtrnNumber, Function.identity(), (a, b) -> a));
+    // Load DB data
+    List<MerchantOrderPaymentDto> dbRecords = merchantOrderPaymentDao
+            .getMerchantOrderPayments(1745489357404L, 1745489357404L);
 
-        // Load file data
-        List<MerchantOrderPaymentDto> fileRecords = fileProcessorService.readCSVByJava("data/merchant_orders.csv");
-        Map<String, MerchantOrderPaymentDto> fileMap = fileRecords.stream()
-                .filter(r -> r.getAtrnNumber() != null)
-                .collect(Collectors.toMap(MerchantOrderPaymentDto::getAtrnNumber, Function.identity(), (a, b) -> a));
+    Map<String, MerchantOrderPaymentDto> dbMap = dbRecords.parallelStream()
+            .filter(r -> r.getAtrnNumber() != null)
+            .collect(Collectors.toMap(MerchantOrderPaymentDto::getAtrnNumber, Function.identity(), (a, b) -> a));
 
-        responseDto.setFileRecordCount(fileRecords.size());
+    // Load file data
+    List<MerchantOrderPaymentDto> fileRecords = fileProcessorService.readCSVByJava("data/merchant_orders.csv");
 
-        // Find matched records (in both DB and file)
-        List<MerchantOrderPaymentDto> matched = fileRecords.stream()
-                .filter(r -> dbMap.containsKey(r.getAtrnNumber()))
-                .collect(Collectors.toList());
-        responseDto.setMatchedRecords(matched);
+    Map<String, MerchantOrderPaymentDto> fileMap = fileRecords.parallelStream()
+            .filter(r -> r.getAtrnNumber() != null)
+            .collect(Collectors.toMap(MerchantOrderPaymentDto::getAtrnNumber, Function.identity(), (a, b) -> a));
 
-        // Find unmatched records (in file but not in DB)
-        List<MerchantOrderPaymentDto> unmatched = fileRecords.stream()
-                .filter(r -> !dbMap.containsKey(r.getAtrnNumber()))
-                .toList();
+    responseDto.setFileRecordCount(fileRecords.size());
 
-        for (MerchantOrderPaymentDto fileRecord : unmatched) {
-            UnMatchedDto unMatchedDto = new UnMatchedDto();
-            unMatchedDto.setDbMerchantOrderPaymentDto(fileRecord);
-            unMatchedRecords.add(unMatchedDto);
-        }
+    // Matched: atrnNumber exists in both
+    List<MerchantOrderPaymentDto> matched = fileRecords.parallelStream()
+            .filter(r -> r.getAtrnNumber() != null && dbMap.containsKey(r.getAtrnNumber()))
+            .collect(Collectors.toList());
+    responseDto.setMatchedRecords(matched);
 
-        responseDto.setUnMatchedRecords(unMatchedRecords);
+    // Unmatched from file (file → DB)
+    List<UnMatchedDto> fileUnmatched = fileRecords.parallelStream()
+            .filter(r -> r.getAtrnNumber() != null && !dbMap.containsKey(r.getAtrnNumber()))
+            .map(fileRecord -> {
+                UnMatchedDto dto = new UnMatchedDto();
+                dto.setDbMerchantOrderPaymentDto(fileRecord);
+                dto.setSource("FILE_ONLY");
+                return dto;
+            })
+            .collect(Collectors.toList());
 
-        long endTime = System.currentTimeMillis();
-        responseDto.setTimeToProcessed(formatMillis(endTime - startTime));
-        System.out.println("Spring Matched data count =======>>>> "+ matched.size());
-        System.out.println("Spring Unmatched data count =======>>>> "+ unmatched.size());
-        System.out.println("Spring boot processed time ======>>>> "+ formatMillis(endTime - startTime));
-        return responseDto;
-    }
+    // Unmatched from DB (DB → file)
+    List<UnMatchedDto> dbUnmatched = dbRecords.parallelStream()
+            .filter(r -> r.getAtrnNumber() != null && !fileMap.containsKey(r.getAtrnNumber()))
+            .map(dbRecord -> {
+                UnMatchedDto dto = new UnMatchedDto();
+                dto.setDbMerchantOrderPaymentDto(dbRecord);
+                dto.setSource("DB_ONLY");
+                return dto;
+            })
+            .collect(Collectors.toList());
+
+    // Combine unmatched records from both sources
+    unMatchedRecords.addAll(fileUnmatched);
+    unMatchedRecords.addAll(dbUnmatched);
+
+    responseDto.setUnMatchedRecords(unMatchedRecords);
+
+    long endTime = System.currentTimeMillis();
+    responseDto.setTimeToProcessed(formatMillis(endTime - startTime));
+
+    System.out.println("Matched records: " + matched.size());
+    System.out.println("Unmatched records: " + unMatchedRecords.size());
+    System.out.println("Processing time: " + formatMillis(endTime - startTime));
+
+    return responseDto;
+}
