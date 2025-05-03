@@ -1,14 +1,89 @@
-org.apache.spark.SparkException: Exception thrown in awaitResult: 
-	at org.apache.spark.util.SparkThreadUtils$.awaitResult(SparkThreadUtils.scala:56) ~[spark-common-utils_2.13-3.5.5.jar:3.5.5]
-	at org.apache.spark.util.ThreadUtils$.awaitResult(ThreadUtils.scala:310) ~[spark-core_2.13-3.5.5.jar:3.5.5]
-	at org.apache.spark.rpc.RpcTimeout.awaitResult(RpcTimeout.scala:75) ~[spark-core_2.13-3.5.5.jar:3.5.5]
-	at org.apache.spark.rpc.RpcEnv.setupEndpointRefByURI(RpcEnv.scala:102) ~[spark-core_2.13-3.5.5.jar:3.5.5]
-	at org.apache.spark.rpc.RpcEnv.setupEndpointRef(RpcEnv.scala:110) ~[spark-core_2.13-3.5.5.jar:3.5.5]
-	at org.apache.spark.deploy.client.StandaloneAppClient$ClientEndpoint$$anon$1.run(StandaloneAppClient.scala:108) ~[spark-core_2.13-3.5.5.jar:3.5.5]
-	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572) ~[?:?]
-	at java.util.concurrent.FutureTask.run(FutureTask.java:317) ~[?:?]
-	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144) ~[?:?]
-	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642) ~[?:?]
-	at java.lang.Thread.run(Thread.java:1583) [?:?]
-Caused by: java.lang.RuntimeException: java.io.InvalidClassException: org.apache.spark.rpc.netty.RpcEndpointVerifier$CheckExistence; local class incompatible: stream classdesc serialVersionUID = 5378738997755484868, local class serialVersionUID = 7789290765573734431
-	at java.base/java.io.ObjectStreamClass.initNonProxy(ObjectStreamClass.java:598)
+plugins {
+    id 'java'
+    id 'war'
+    id 'org.springframework.boot' version '3.3.10'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.rajput'
+version = '0.0.1'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+configurations.configureEach {
+    exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+    exclude group: 'ch.qos.logback', module: 'logback-classic'
+    exclude group: 'ch.qos.logback', module: 'logback-core'
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    implementation 'org.apache.tomcat.embed:tomcat-embed-jasper:10.1.20'
+    implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.1'
+    implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl:3.0.1'
+
+    implementation "com.oracle.database.jdbc:ojdbc11:23.5.0.24.07"
+    implementation 'org.antlr:antlr4-runtime:4.9.3'
+
+    implementation "javax.persistence:javax.persistence-api:2.2"
+    implementation 'com.opencsv:opencsv:5.9'
+
+    //Spark-core dependency
+    implementation('org.apache.spark:spark-core_2.13:3.5.5') {
+        exclude group: 'org.eclipse.jetty'
+        exclude group: 'javax.servlet'
+    }
+    implementation('org.apache.spark:spark-sql_2.13:3.5.5') {
+        exclude group: 'org.eclipse.jetty'
+        exclude group: 'javax.servlet'
+    }
+    //Spark-excel dependency
+    implementation 'com.crealytics:spark-excel_2.13:3.5.0_0.20.3'
+
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
+
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
+
+    implementation 'javax.servlet:javax.servlet-api:4.0.1'
+
+
+
+    //mapStruct
+    implementation 'org.mapstruct:mapstruct:1.5.2.Final'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+bootRun {
+    jvmArgs = [
+            "--add-exports", "java.base/sun.nio.ch=ALL-UNNAMED"
+    ]
+}
+war {
+
+}
+//bootWar {
+//    archiveFileName = 'springboot-jsp-spark-demo.war'
+//}
+//java --add-exports=java.base/sun.nio.ch=ALL-UNNAMED -jar build/libs/your-app.war
