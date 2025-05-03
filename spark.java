@@ -34,3 +34,7 @@ implementation('org.apache.spark:spark-sql_2.13:3.5.5') {
 
 Stop Worker:
 %SPARK_HOME%\sbin\stop-worker.cmd
+
+
+java -cp "jars/*" org.apache.spark.deploy.worker.Worker spark://10.30.64.27:7077
+java -cp "jars/*" org.apache.spark.deploy.master.Master
