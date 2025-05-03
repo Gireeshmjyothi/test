@@ -1,120 +1,84 @@
-25/05/02 17:39:36 ERROR TransportRequestHandler: Error while invoking RpcHandler#receive() on RPC id 4993250817215872945
-java.io.InvalidClassException: org.apache.spark.rpc.netty.RpcEndpointVerifier$CheckExistence; local class incompatible: stream classdesc serialVersionUID = 5378738997755484868, local class serialVersionUID = 7789290765573734431
-
-  spark.app.name=RnSSparkPOC
-spark.master=spark://10.30.64.27:7077
-server.port=8089
-
-spring.mvc.view.prefix=/WEB-INF/views/
-spring.mvc.view.suffix=.jsp
-server.servlet.jsp.init-parameters.development=true
-
-  @Configuration
-public class SparkConfig {
-    @Value("${spark.app.name}")
-    private String appName;
-
-    @Value("${spark.master}")
-    private String master;
-    @Bean
-    public SparkSession sparkSession() {
-        return SparkSession.builder()
-                .appName(appName)
-                .master(master)
-                .config("spark.ui.enabled", "false") // disable web UI
-                .getOrCreate();
-    }
-}
-
-plugins {
-    id 'java'
-    id 'war'
-    id 'org.springframework.boot' version '3.3.10'
-    id 'io.spring.dependency-management' version '1.1.7'
-}
-
-group = 'com.rajput'
-version = '0.0.1'
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
-repositories {
-    mavenCentral()
-}
-configurations.configureEach {
-    exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
-    exclude group: 'ch.qos.logback', module: 'logback-classic'
-    exclude group: 'ch.qos.logback', module: 'logback-core'
-}
-
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-
-    implementation 'org.apache.tomcat.embed:tomcat-embed-jasper:10.1.20'
-    implementation 'jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:3.0.1'
-    implementation 'org.glassfish.web:jakarta.servlet.jsp.jstl:3.0.1'
-
-    implementation "com.oracle.database.jdbc:ojdbc11:23.5.0.24.07"
-    implementation 'org.antlr:antlr4-runtime:4.9.3'
-
-    implementation "javax.persistence:javax.persistence-api:2.2"
-    implementation 'com.opencsv:opencsv:5.9'
-
-    //Spark-core dependency
-    implementation('org.apache.spark:spark-core_2.13:3.5.1') {
-        exclude group: 'org.eclipse.jetty'
-        exclude group: 'org.eclipse.jetty.aggregate'
-        exclude group: 'org.eclipse.jetty.jetty'
-        exclude group: 'javax.servlet'
-    }
-    //Spark-sql dependency
-    implementation('org.apache.spark:spark-sql_2.13:3.5.1') {
-        exclude group: 'org.eclipse.jetty'
-        exclude group: 'javax.servlet'
-    }
-    //Spark-excel dependency
-    implementation 'com.crealytics:spark-excel_2.13:3.5.0_0.20.3'
-
-    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
-
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
-
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-
-    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
-    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.20.0'
-
-    implementation 'javax.servlet:javax.servlet-api:4.0.1'
-
-
-
-    //mapStruct
-    implementation 'org.mapstruct:mapstruct:1.5.2.Final'
-    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.2.Final'
-}
-
-tasks.named('test') {
-    useJUnitPlatform()
-}
-
-bootRun {
-    jvmArgs += [
-            "--add-exports", "java.base/sun.nio.ch=ALL-UNNAMED"
-    ]
-}
-war {
-
-}
-//bootWar {
-//    archiveFileName = 'springboot-jsp-spark-demo.war'
-//}
-//java --add-exports=java.base/sun.nio.ch=ALL-UNNAMED -jar build/libs/your-app.war
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: class org.apache.spark.storage.StorageUtils$ (in unnamed module @0x1e0b4072) cannot access class sun.nio.ch.DirectBuffer (in module java.base) because module java.base does not export sun.nio.ch to unnamed module @0x1e0b4072
+	at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:178) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:644) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:485) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1355) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1185) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1375) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1212) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782) ~[spring-beans-6.1.18.jar:6.1.18]
+	... 19 more
+Caused by: java.lang.IllegalAccessError: class org.apache.spark.storage.StorageUtils$ (in unnamed module @0x1e0b4072) cannot access class sun.nio.ch.DirectBuffer (in module java.base) because module java.base does not export sun.nio.ch to unnamed module @0x1e0b4072
+	at org.apache.spark.storage.StorageUtils$.<clinit>(StorageUtils.scala:213) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.storage.BlockManagerMasterEndpoint.<init>(BlockManagerMasterEndpoint.scala:121) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkEnv$.$anonfun$create$9(SparkEnv.scala:353) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkEnv$.registerOrLookupEndpoint$1(SparkEnv.scala:290) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkEnv$.create(SparkEnv.scala:339) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkEnv$.createDriverEnv(SparkEnv.scala:194) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkContext.createSparkEnv(SparkContext.scala:284) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkContext.<init>(SparkContext.scala:478) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.SparkContext$.getOrCreate(SparkContext.scala:2883) ~[spark-core_2.13-3.5.5.jar:3.5.5]
+	at org.apache.spark.sql.SparkSession$Builder.$anonfun$getOrCreate$2(SparkSession.scala:1099) ~[spark-sql_2.13-3.5.5.jar:3.5.5]
+	at scala.Option.getOrElse(Option.scala:201) ~[spark-excel_2.13-3.5.0_0.20.3.jar:3.5.0_0.20.3]
+	at org.apache.spark.sql.SparkSession$Builder.getOrCreate(SparkSession.scala:1093) ~[spark-sql_2.13-3.5.5.jar:3.5.5]
+	at com.rajput.config.SparkConfig.sparkSession(SparkConfig.java:24) ~[main/:?]
+	at com.rajput.config.SparkConfig$$SpringCGLIB$$0.CGLIB$sparkSession$1(<generated>) ~[main/:?]
+	at com.rajput.config.SparkConfig$$SpringCGLIB$$FastClass$$1.invoke(<generated>) ~[main/:?]
+	at org.springframework.cglib.proxy.MethodProxy.invokeSuper(MethodProxy.java:258) ~[spring-core-6.1.18.jar:6.1.18]
+	at org.springframework.context.annotation.ConfigurationClassEnhancer$BeanMethodInterceptor.intercept(ConfigurationClassEnhancer.java:370) ~[spring-context-6.1.18.jar:6.1.18]
+	at com.rajput.config.SparkConfig$$SpringCGLIB$$0.sparkSession(<generated>) ~[main/:?]
+	at jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:580) ~[?:?]
+	at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:146) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:644) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:485) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1355) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1185) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1375) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1212) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904) ~[spring-beans-6.1.18.jar:6.1.18]
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782) ~[spring-beans-6.1.18.jar:6.1.18]
+	... 19 more
