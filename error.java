@@ -39,3 +39,4 @@ public class SftpClientUtil {
         channelSftp.connect();
         log.info("Connected to SFTP server.");
     }
+}
