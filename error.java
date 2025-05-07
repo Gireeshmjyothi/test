@@ -1,41 +1,35 @@
-import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
 import org.apache.sshd.common.keyprovider.SimpleGeneratorHostKeyProvider;
-import org.apache.sshd.common.util.security.SecurityUtils;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.auth.password.PasswordAuthenticator;
 import org.apache.sshd.server.command.Command;
 import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
+import org.apache.sshd.common.NamedFactory;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
+import java.util.Collections;
 
 public class LocalSftpServer {
 
     public static SshServer startServer(String username, String password, int port, String rootDirPath) throws IOException {
-        Path rootDir = Paths.get(rootDirPath);
-
         SshServer sshd = SshServer.setUpDefaultServer();
         sshd.setPort(port);
 
-        // Set HostKey provider
+        // Generate host key if not present
         sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(Paths.get("hostkey.ser")));
 
-        // Password authentication
+        // Set password authenticator
         sshd.setPasswordAuthenticator((u, p, session) -> username.equals(u) && password.equals(p));
 
-        // SFTP Subsystem
-        SftpSubsystemFactory sftpFactory = new SftpSubsystemFactory();
-        List<NamedFactory<Command>> sftpSubsystem = sftpFactory.getSubsystemFactories();
-        sshd.setSubsystemFactories(sftpSubsystem);
+        // Set SFTP subsystem
+        sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
 
-        // Virtual file system
-        sshd.setFileSystemFactory(new VirtualFileSystemFactory(rootDir));
+        // Set virtual file system root
+        sshd.setFileSystemFactory(new VirtualFileSystemFactory(Paths.get(rootDirPath)));
 
         sshd.start();
-        System.out.println("SFTP Server started at port " + port + ", root dir: " + rootDir.toAbsolutePath());
+        System.out.println("SFTP Server started on port " + port + ", root directory: " + rootDirPath);
         return sshd;
     }
 
