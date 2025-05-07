@@ -1,59 +1,65 @@
- Algorithm negotiation fail: algorithmName="server_host_key" jschProposal="ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256" serverProposal="ssh-rsa"
+import org.apache.sshd.common.config.keys.KeyUtils;
+import org.apache.sshd.common.keyprovider.KeyPairProvider;
+import org.apache.sshd.common.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.apache.sshd.common.NamedFactory;
+import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
+import org.apache.sshd.common.util.security.SecurityUtils;
+import org.apache.sshd.server.SshServer;
+import org.apache.sshd.server.auth.password.PasswordAuthenticator;
+import org.apache.sshd.server.auth.UserAuth;
+import org.apache.sshd.server.auth.password.UserAuthPasswordFactory;
+import org.apache.sshd.server.command.Command;
+import org.apache.sshd.server.command.ProcessShellCommandFactory;
+import org.apache.sshd.server.config.keys.DefaultAuthorizedKeysAuthenticator;
+import org.apache.sshd.server.config.keys.DefaultHostKeyProvider;
+import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.apache.sshd.server.scp.ScpCommandFactory;
+import org.apache.sshd.sftp.server.SftpSubsystemFactory;
+import org.apache.sshd.common.signature.BuiltinSignatures;
+import org.apache.sshd.common.signature.SignatureFactory;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.KeyPair;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
-// jsch
-	implementation("com.github.mwiede:jsch:0.2.25")
-this is used in another service (RandSService) to connecto sftp
-and the blow deplendeces in other SFTP service which give me the localhost sftp server to connect
-	// apache sshd for compile scope (RELEASE is not recommended in Gradle, use a fixed version instead)
-	implementation 'org.apache.sshd:sshd-core:2.1.0'
-	implementation 'org.apache.sshd:sshd-sftp:2.1.0'
+public static SftpServerBean setupSftpServer(String username, String password, int port) throws IOException {
+    Path tempSftpDir = Paths.get("C:\\SFTP");
 
-	// https://mvnrepository.com/artifact/com.github.mwiede/jsch
-	implementation("com.github.mwiede:jsch:0.2.25")
+    // Create a stronger host key provider (e.g., ECDSA or RSA)
+    SimpleGeneratorHostKeyProvider hostKeyProvider = new SimpleGeneratorHostKeyProvider(Paths.get("hostkey.ser"));
+    hostKeyProvider.setAlgorithm("RSA"); // You can also use "EC" for ECDSA
 
-	// apache sshd for test scope
-	testImplementation 'org.apache.sshd:sshd-core:2.1.0'
-	testImplementation 'org.apache.sshd:sshd-sftp:2.1.0'
+    List<NamedFactory<UserAuth>> userAuthFactories = List.of(new UserAuthPasswordFactory());
+    List<NamedFactory<Command>> sftpCommandFactory = List.of(new SftpSubsystemFactory());
 
+    SshServer sshd = SshServer.setUpDefaultServer();
+    sshd.setPort(port);
+    sshd.setKeyPairProvider(hostKeyProvider);
+    sshd.setUserAuthFactories(userAuthFactories);
+    sshd.setCommandFactory(new ProcessShellCommandFactory());
+    sshd.setSubsystemFactories(sftpCommandFactory);
 
-earlier it was working with 	// jsch
-	implementation 'com.jcraft:jsch:0.1.54'
+    // Set supported signature algorithms (compatible with JSCH 0.2.25)
+    sshd.setSignatureFactories(Arrays.asList(
+        BuiltinSignatures.rsaSha512,
+        BuiltinSignatures.rsaSha256,
+        BuiltinSignatures.ecdsaSha2Nistp256
+    ));
 
-but now it is not working with updated version which is mentioned above
+    sshd.setPasswordAuthenticator((usernameAuth, passwordAuth, session) -> {
+        if (username.equals(usernameAuth) && password.equals(passwordAuth)) {
+            sshd.setFileSystemFactory(new VirtualFileSystemFactory(tempSftpDir));
+            return true;
+        }
+        return false;
+    });
 
+    sshd.start();
+    System.out.println("Started SFTP server with root path: " + tempSftpDir.toAbsolutePath());
 
-
-	/**
-     * Setup a SFTP Server in localhost with a temp directory as root
-     *
-     * @throws IOException If it cannot create a temp dir
-     */
-    public static SftpServerBean setupSftpServer(String username, String password, int port) throws IOException {
-        Path tempSftpDir = Paths.get( "C:\\SFTP") ;//Files.createTempDirectory(SFTPServer.class.getName());
-
-        List<NamedFactory<UserAuth>> userAuthFactories = new ArrayList<>();
-        userAuthFactories.add(new UserAuthPasswordFactory());
-
-        List<NamedFactory<Command>> sftpCommandFactory = new ArrayList<>();
-        sftpCommandFactory.add(new SftpSubsystemFactory());
-
-        SshServer sshd = SshServer.setUpDefaultServer();
-        sshd.setPort(port);
-        sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider());
-        sshd.setUserAuthFactories(userAuthFactories);
-        sshd.setCommandFactory(new ProcessShellCommandFactory());
-        sshd.setSubsystemFactories(sftpCommandFactory);
-        sshd.setPasswordAuthenticator((usernameAuth, passwordAuth, session) -> {
-            if ((username.equals(usernameAuth)) && (password.equals(passwordAuth))) {
-                sshd.setFileSystemFactory(new VirtualFileSystemFactory(tempSftpDir));
-                return true;
-            }
-            return false;
-        });
-
-        sshd.start();
-        System.out.println("Started SFTP server with root path: " + tempSftpDir.toFile().getAbsolutePath());
-        return new SftpServerBean(sshd, tempSftpDir);
-    }
-
+    return new SftpServerBean(sshd, tempSftpDir);
+}
