@@ -41,3 +41,48 @@ public class EmbeddedSftpServer {
         Thread.currentThread().join(); // Keep running
     }
 }
+
+
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.JSch;
+import com.jcraft.jsch.JSchException;
+import com.jcraft.jsch.Session;
+
+public class SftpClient {
+
+    private Session session;
+    private ChannelSftp channelSftp;
+
+    public void connect(String host, int port, String username, String password) throws JSchException {
+        JSch jsch = new JSch();
+        session = jsch.getSession(username, host, port);
+        session.setPassword(password);
+        session.setConfig("StrictHostKeyChecking", "no"); // For testing purposes
+        session.connect();
+
+        channelSftp = (ChannelSftp) session.openChannel("sftp");
+        channelSftp.connect();
+        System.out.println("Connected to SFTP server at " + host + ":" + port);
+    }
+
+    public void disconnect() {
+        if (channelSftp != null && channelSftp.isConnected()) {
+            channelSftp.disconnect();
+        }
+        if (session != null && session.isConnected()) {
+            session.disconnect();
+        }
+        System.out.println("Disconnected from SFTP server");
+    }
+
+    public static void main(String[] args) {
+        SftpClient client = new SftpClient();
+        try {
+            client.connect("localhost", 2222, "testuser", "testpass");
+            // Perform file operations here
+            client.disconnect();
+        } catch (JSchException e) {
+            e.printStackTrace();
+        }
+    }
+}
