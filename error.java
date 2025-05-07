@@ -1,75 +1,39 @@
-import org.apache.sshd.common.NamedFactory;
 import org.apache.sshd.common.file.virtualfs.VirtualFileSystemFactory;
-import org.apache.sshd.common.keyprovider.KeyPairProvider;
 import org.apache.sshd.common.keyprovider.SimpleGeneratorHostKeyProvider;
-import org.apache.sshd.common.session.SessionContext;
 import org.apache.sshd.common.util.security.SecurityUtils;
-import org.apache.sshd.common.signature.BuiltinSignatures;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.auth.password.PasswordAuthenticator;
+import org.apache.sshd.server.auth.password.UserAuthPasswordFactory;
 import org.apache.sshd.server.command.Command;
-import org.apache.sshd.server.command.ScpCommandFactory;
+import org.apache.sshd.server.command.ProcessShellCommandFactory;
 import org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.KeyPair;
 import java.util.Collections;
-import java.util.List;
 
 public class LocalSftpServer {
 
-    public static SshServer startSftpServer(String username, String password, int port) throws IOException {
-        Path homeDir = Paths.get("C:/SFTP"); // Make sure this exists
+    public static void main(String[] args) throws IOException {
+        setupSftpServer("testuser", "testpass", 2222);
+    }
+
+    public static void setupSftpServer(String username, String password, int port) throws IOException {
+        Path rootDir = Paths.get("C:/SFTP"); // Ensure this directory exists
+        Path hostKeyPath = Paths.get("hostkey.ser");
 
         SshServer sshd = SshServer.setUpDefaultServer();
         sshd.setPort(port);
-
-        // Provide host key (persisted to file)
-        KeyPairProvider hostKeyProvider = new SimpleGeneratorHostKeyProvider(Paths.get("hostkey.ser"));
-        sshd.setKeyPairProvider(hostKeyProvider);
-
-        // Set signature algorithms compatible with JSCH 0.2.25
-        sshd.setSignatureFactories(BuiltinSignatures.resolveSignatureFactories(
-                "rsa-sha2-512,rsa-sha2-256,ssh-ed25519"
-        ));
-
-        // Password authentication
-        sshd.setPasswordAuthenticator((user, pass, session) ->
-                username.equals(user) && password.equals(pass)
-        );
-
-        // SFTP subsystem
+        sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(hostKeyPath));
+        sshd.setPasswordAuthenticator((u, p, session) -> u.equals(username) && p.equals(password));
+        sshd.setUserAuthFactories(Collections.singletonList(new UserAuthPasswordFactory()));
+        sshd.setCommandFactory(new ProcessShellCommandFactory());
         sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
-
-        // Optional: SCP support
-        sshd.setCommandFactory(new ScpCommandFactory());
-
-        // Virtual file system
-        sshd.setFileSystemFactory(new VirtualFileSystemFactory(homeDir));
+        sshd.setFileSystemFactory(new VirtualFileSystemFactory(rootDir));
+        sshd.setSignatureFactories(SecurityUtils.getRegisteredSignatures());
 
         sshd.start();
-        System.out.println("SFTP Server started on port " + port + " with root: " + homeDir);
-        return sshd;
+        System.out.println("SFTP server started at port " + port + ", root: " + rootDir);
     }
-}
-
-public void connect() throws JSchException {
-    log.info("Preparing SFTP Connection.");
-    JSch jsch = new JSch();
-    session = jsch.getSession(username, host, port);
-    session.setPassword(password);
-
-    java.util.Properties config = new java.util.Properties();
-    config.put("StrictHostKeyChecking", "no");
-    config.put("server_host_key", "rsa-sha2-512,rsa-sha2-256,ssh-ed25519"); // Optional, but good practice
-    session.setConfig(config);
-
-    log.info("Connecting to " + host + ":" + port + " with user " + username);
-    session.connect();
-    channelSftp = (ChannelSftp) session.openChannel("sftp");
-    log.info("Connecting to SFTP.");
-    channelSftp.connect();
-    log.info("Connected to SFTP server.");
 }
