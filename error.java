@@ -22,3 +22,38 @@ earlier it was working with 	// jsch
 
 but now it is not working with updated version which is mentioned above
 
+
+
+	/**
+     * Setup a SFTP Server in localhost with a temp directory as root
+     *
+     * @throws IOException If it cannot create a temp dir
+     */
+    public static SftpServerBean setupSftpServer(String username, String password, int port) throws IOException {
+        Path tempSftpDir = Paths.get( "C:\\SFTP") ;//Files.createTempDirectory(SFTPServer.class.getName());
+
+        List<NamedFactory<UserAuth>> userAuthFactories = new ArrayList<>();
+        userAuthFactories.add(new UserAuthPasswordFactory());
+
+        List<NamedFactory<Command>> sftpCommandFactory = new ArrayList<>();
+        sftpCommandFactory.add(new SftpSubsystemFactory());
+
+        SshServer sshd = SshServer.setUpDefaultServer();
+        sshd.setPort(port);
+        sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider());
+        sshd.setUserAuthFactories(userAuthFactories);
+        sshd.setCommandFactory(new ProcessShellCommandFactory());
+        sshd.setSubsystemFactories(sftpCommandFactory);
+        sshd.setPasswordAuthenticator((usernameAuth, passwordAuth, session) -> {
+            if ((username.equals(usernameAuth)) && (password.equals(passwordAuth))) {
+                sshd.setFileSystemFactory(new VirtualFileSystemFactory(tempSftpDir));
+                return true;
+            }
+            return false;
+        });
+
+        sshd.start();
+        System.out.println("Started SFTP server with root path: " + tempSftpDir.toFile().getAbsolutePath());
+        return new SftpServerBean(sshd, tempSftpDir);
+    }
+
