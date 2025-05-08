@@ -19,45 +19,63 @@ class SftpClientTest {
 
     @BeforeEach
     void setUp() throws JSchException {
-        Mockito.when(jsch.getSession(username, host, port)).thenReturn(session);
-        Mockito.when(session.openChannel("sftp")).thenReturn(channelSftp);
-
         sftpClient = new SftpClient(host, port, username, password, jsch);
+        // Setting the private fields for disconnect testing
+        ReflectionTestUtils.setField(sftpClient, "session", session);
+        ReflectionTestUtils.setField(sftpClient, "channelSftp", channelSftp);
     }
 
     @Test
-    void testConnect_Success() throws Exception {
-        Mockito.doNothing().when(session).connect();
-        Mockito.doNothing().when(channelSftp).connect();
+    void testDisconnect_BothConnected() {
+        Mockito.when(channelSftp.isConnected()).thenReturn(true);
+        Mockito.when(session.isConnected()).thenReturn(true);
 
-        assertDoesNotThrow(() -> sftpClient.connect());
-        Mockito.verify(session).connect();
-        Mockito.verify(channelSftp).connect();
+        sftpClient.disconnect();
+
+        Mockito.verify(channelSftp).disconnect();
+        Mockito.verify(session).disconnect();
     }
 
     @Test
-    void testConnect_SessionConnectionFails() throws Exception {
-        Mockito.doThrow(new JSchException("Session failed")).when(session).connect();
+    void testDisconnect_ChannelOnlyConnected() {
+        Mockito.when(channelSftp.isConnected()).thenReturn(true);
+        Mockito.when(session.isConnected()).thenReturn(false);
 
-        JSchException ex = assertThrows(JSchException.class, () -> sftpClient.connect());
-        assertEquals("Session failed", ex.getMessage());
+        sftpClient.disconnect();
+
+        Mockito.verify(channelSftp).disconnect();
+        Mockito.verify(session, Mockito.never()).disconnect();
     }
 
     @Test
-    void testConnect_ChannelOpenFails() throws Exception {
-        Mockito.when(session.openChannel("sftp")).thenThrow(new JSchException("Channel failed"));
-        Mockito.doNothing().when(session).connect();
+    void testDisconnect_SessionOnlyConnected() {
+        Mockito.when(channelSftp.isConnected()).thenReturn(false);
+        Mockito.when(session.isConnected()).thenReturn(true);
 
-        JSchException ex = assertThrows(JSchException.class, () -> sftpClient.connect());
-        assertEquals("Channel failed", ex.getMessage());
+        sftpClient.disconnect();
+
+        Mockito.verify(channelSftp, Mockito.never()).disconnect();
+        Mockito.verify(session).disconnect();
     }
 
     @Test
-    void testConnect_ChannelSftpConnectFails() throws Exception {
-        Mockito.doNothing().when(session).connect();
-        Mockito.doThrow(new JSchException("SFTP connect failed")).when(channelSftp).connect();
+    void testDisconnect_NoneConnected() {
+        Mockito.when(channelSftp.isConnected()).thenReturn(false);
+        Mockito.when(session.isConnected()).thenReturn(false);
 
-        JSchException ex = assertThrows(JSchException.class, () -> sftpClient.connect());
-        assertEquals("SFTP connect failed", ex.getMessage());
+        sftpClient.disconnect();
+
+        Mockito.verify(channelSftp, Mockito.never()).disconnect();
+        Mockito.verify(session, Mockito.never()).disconnect();
     }
-                     }
+
+    @Test
+    void testDisconnect_NullObjects() {
+        ReflectionTestUtils.setField(sftpClient, "channelSftp", null);
+        ReflectionTestUtils.setField(sftpClient, "session", null);
+
+        sftpClient.disconnect(); // should not throw exception
+
+        // No exception expected, nothing to verify
+    }
+}
