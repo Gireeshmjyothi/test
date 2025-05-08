@@ -1,78 +1,76 @@
-dependencies {
-    implementation 'org.apache.spark:spark-core_2.13:3.5.1'
-    implementation 'org.apache.spark:spark-sql_2.13:3.5.1'
-    implementation 'com.zaxxer:HikariCP:5.0.0'  // HikariCP connection pool
-    implementation 'org.postgresql:postgresql:42.3.5'  // PostgreSQL JDBC driver
-}
+private static final String LOCAL_DOWNLOAD_DIR = "C:\\SFTP\\DownLoad";
+    private static final String PROCESSED_DIR = "/processed/";
+    private static final List<String> SUBFOLDERS = Arrays.asList("/RnS/SBI", "/RnS/HDFC", "/RnS/BOB");
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
+    private final LoggerUtility log = LoggerFactoryUtility.getLogger(this.getClass());
+    private final SFTPConfig sftpConfig;
 
-import javax.sql.DataSource;
+    public void findListOfFiles() {
+        SftpClientUtil sftpClient = sftpConfig.sftpClient();
+        Path downloadDir = Paths.get(LOCAL_DOWNLOAD_DIR);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
-public class DataSourceManager {
+        try {
+            sftpClient.connect();
+            List<FileInfo> recentFiles = sftpClient.findListOfFiles(SUBFOLDERS);
 
-    private static HikariDataSource dataSource;
+            if (recentFiles.isEmpty()) {
+                log.info("No files found.");
+                return;
+            }
 
-    public static DataSource getDataSource() {
-        if (dataSource == null) {
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl("jdbc:postgresql://pg-36cdad80-rajput-d178.f.aivencloud.com:10052/defaultdb");
-            config.setUsername("avnadmin");
-            config.setPassword("AVNS__gIHpnNG1mpYDSlt9pT");
-            config.setDriverClassName("org.postgresql.Driver");
-            config.setMaximumPoolSize(10);  // Set the pool size based on your requirement
-            config.setMinimumIdle(5);  // Set minimum idle connections
-            config.setIdleTimeout(30000);  // Set idle timeout
-            config.setConnectionTimeout(20000);  // Set connection timeout
+            int processedCount = 0;
 
-            dataSource = new HikariDataSource(config);
-        }
-        return dataSource;
-    }
+            for (FileInfo fileInfo : recentFiles) {
+                logFileInfo(fileInfo, sdf);
 
-    // Method to close the DataSource when the application shuts down
-    public static void close() {
-        if (dataSource != null) {
-            dataSource.close();
-        }
-    }
-}
+                boolean success = processSingleFile(sftpClient, downloadDir, fileInfo);
+                if (success) {
+                    processedCount++;
+                }
 
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SparkSession;
+                try {
+                    sftpClient.createAcknowledgmentFile(fileInfo.getFileName(), success);
+                } catch (SftpException e) {
+                    log.error("Error creating acknowledgment file: {}", e.getMessage());
+                }
+            }
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.Properties;
+            log.info("Total files downloaded and processed: {}", processedCount);
 
-public class SparkDatabaseService {
-
-    private static final SparkSession sparkSession = SparkSession.builder()
-            .appName("SparkDatabaseApp")
-            .master("local[*]")
-            .getOrCreate();
-
-    private static final DataSource dataSource = DataSourceManager.getDataSource();
-
-    public Dataset<Row> getDbDataSet() {
-        // Obtain a connection from HikariCP pool
-        try (Connection connection = dataSource.getConnection()) {
-            Properties connectionProperties = new Properties();
-            connectionProperties.put("user", "avnadmin");
-            connectionProperties.put("password", "AVNS__gIHpnNG1mpYDSlt9pT");
-
-            // Load dataset from PostgreSQL using HikariCP connection pool
-            String table = "employee";
-            return sparkSession.read()
-                    .jdbc("jdbc:postgresql://pg-36cdad80-rajput-d178.f.aivencloud.com:10052/defaultdb", 
-                        table, 
-                        connectionProperties);
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return null;
+        } catch (JSchException | SftpException e) {
+            log.error("Error occurred while processing files on SFTP: {}", e.getMessage());
+        } finally {
+            sftpClient.disconnect();
+            log.info("Disconnected from SFTP server.");
         }
     }
-}
+
+    private boolean processSingleFile(SftpClientUtil sftpClient, Path downloadDir, FileInfo fileInfo) {
+        Path downloadedFile = downloadDir.resolve(fileInfo.getFileName());
+
+        try {
+            sftpClient.downloadFile(fileInfo.getRemotePath(), downloadedFile.toString());
+            log.info("Downloaded to: {}", downloadedFile);
+
+            String content = new String(Files.readAllBytes(downloadedFile));
+            log.info("Content: {}", content);
+
+            Path processedPath =  Paths.get(PROCESSED_DIR).resolve(fileInfo.getFileName());
+            sftpClient.moveFile(fileInfo.getRemotePath(), processedPath.toAbsolutePath().toString());
+            log.info("File moved to: {}", processedPath);
+
+            return true;
+
+        } catch (IOException | SftpException | JSchException e) {
+            log.error("Error processing file {}: {}", fileInfo.getFileName(), e.getMessage());
+            return false;
+        }
+    }
+
+    private void logFileInfo(FileInfo fileInfo, SimpleDateFormat sdf) {
+        log.info("Folder: {}", fileInfo.getFolder());
+        log.info("File: {}", fileInfo.getFileName());
+        log.info("Path: {}", fileInfo.getRemotePath());
+        log.info("Modified: {}", sdf.format(new Date(fileInfo.getModificationTime())));
+    }
