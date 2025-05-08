@@ -1,31 +1,37 @@
 @Test
-void testFindListOfFilesIgnoresDotAndDotDot() throws SftpException {
-    String subfolder = "/folder";
-    List<String> subfolders = List.of(subfolder);
+    void testFindListOfFilesSkipsDirectories() throws SftpException {
+        String subfolder = "/folder";
+        List<String> subfolders = List.of(subfolder);
 
-    // Mock '.' entry
-    ChannelSftp.LsEntry dotEntry = mock(ChannelSftp.LsEntry.class);
-    SftpATTRS dotAttrs = mock(SftpATTRS.class);
-    when(dotEntry.getFilename()).thenReturn(".");
-    when(dotEntry.getAttrs()).thenReturn(dotAttrs);
-    when(dotAttrs.isDir()).thenReturn(false);
+        ChannelSftp.LsEntry dirEntry = mock(ChannelSftp.LsEntry.class);
+        SftpATTRS attrs = mock(SftpATTRS.class);
+        when(dirEntry.getFilename()).thenReturn("subdir");
+        when(dirEntry.getAttrs()).thenReturn(attrs);
+        when(attrs.isDir()).thenReturn(true);
 
-    // Mock '..' entry
-    ChannelSftp.LsEntry dotDotEntry = mock(ChannelSftp.LsEntry.class);
-    SftpATTRS dotDotAttrs = mock(SftpATTRS.class);
-    when(dotDotEntry.getFilename()).thenReturn("..");
-    when(dotDotEntry.getAttrs()).thenReturn(dotDotAttrs);
-    when(dotDotAttrs.isDir()).thenReturn(false);
+        Vector<ChannelSftp.LsEntry> fileVector = new Vector<>();
+        fileVector.add(dirEntry);
 
-    Vector<ChannelSftp.LsEntry> fileVector = new Vector<>();
-    fileVector.add(dotEntry);
-    fileVector.add(dotDotEntry);
+        when(channelSftp.ls(subfolder)).thenReturn(fileVector);
 
-    when(channelSftp.ls(subfolder)).thenReturn(fileVector);
+        List<FileInfo> result = sftpClient.findListOfFiles(subfolders);
+        assertTrue(result.isEmpty());
+    }
 
-    List<FileInfo> result = sftpClient.findListOfFiles(subfolders);
+Unnecessary stubbings detected.
+Clean & maintainable test code requires zero unnecessary code.
+Following stubbings are unnecessary (click to navigate to relevant line of code):
+  1. -> at com.epay.rns.externalservice.SftpClientHelperTest.testFindListOfFilesSkipsDirectories(SftpClientHelperTest.java:338)
+Please remove unnecessary stubbings or use 'lenient' strictness. More info: javadoc for UnnecessaryStubbingException class.
+org.mockito.exceptions.misusing.UnnecessaryStubbingException: 
+Unnecessary stubbings detected.
+Clean & maintainable test code requires zero unnecessary code.
+Following stubbings are unnecessary (click to navigate to relevant line of code):
+  1. -> at com.epay.rns.externalservice.SftpClientHelperTest.testFindListOfFilesSkipsDirectories(SftpClientHelperTest.java:338)
+Please remove unnecessary stubbings or use 'lenient' strictness. More info: javadoc for UnnecessaryStubbingException class.
+	at org.mockito.junit.jupiter.MockitoExtension.afterEach(MockitoExtension.java:197)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
 
-    // Assert that these dot entries are ignored
-    assertNotNull(result);
-    assertTrue(result.isEmpty(), "Dot and dot-dot entries should be ignored");
-}
+
+OpenJDK 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
