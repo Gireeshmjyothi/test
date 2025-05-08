@@ -1,49 +1,23 @@
-@Test
-void testCreateAcknowledgmentFile_Success() throws Exception {
-    // Set mock ChannelSftp
-    ReflectionTestUtils.setField(sftpClient, "channelSftp", channelSftp);
+public List<FileInfo> findListOfFiles(List<String> remoteSubfolders) throws SftpException {
+        List<FileInfo> recentFiles = new ArrayList<>();
 
-    String fileName = "report123";
-    String filePath = "/remote/ack";
-    boolean success = true;
-
-    // Simulate upload success
-    Mockito.doNothing().when(channelSftp).put(Mockito.anyString(), Mockito.anyString());
-
-    assertDoesNotThrow(() -> sftpClient.createAcknowledgmentFile(fileName, success, filePath));
-
-    // Verify that 'put' is called with proper destination path
-    Mockito.verify(channelSftp).put(Mockito.anyString(), Mockito.contains("report123_processed.txt"));
-}
-
-@Test
-void testCreateAcknowledgmentFile_FailureInPut() throws Exception {
-    ReflectionTestUtils.setField(sftpClient, "channelSftp", channelSftp);
-
-    String fileName = "data";
-    String filePath = "/remote/ack";
-    boolean success = false;
-
-    Mockito.doThrow(new SftpException(4, "Permission denied"))
-           .when(channelSftp).put(Mockito.anyString(), Mockito.anyString());
-
-    SftpException ex = assertThrows(SftpException.class, () ->
-            sftpClient.createAcknowledgmentFile(fileName, success, filePath));
-
-    assertTrue(ex.getMessage().contains("Failed to create acknowledgment file"));
-    assertEquals(ChannelSftp.SSH_FX_FAILURE, ex.id);
-}
-
-@Test
-void testCreateAcknowledgmentFile_ChannelSftpNull() {
-    ReflectionTestUtils.setField(sftpClient, "channelSftp", null);
-
-    String fileName = "ack";
-    String filePath = "/remote/ack";
-    boolean success = true;
-
-    NullPointerException ex = assertThrows(NullPointerException.class, () ->
-            sftpClient.createAcknowledgmentFile(fileName, success, filePath));
-
-    assertNotNull(ex.getMessage());
-}
+        for (String subfolder : remoteSubfolders) {
+            try {
+                Vector<ChannelSftp.LsEntry> files = channelSftp.ls(subfolder);
+                for (ChannelSftp.LsEntry entry : files) {
+                    if (!entry.getAttrs().isDir() && !entry.getFilename().equals(".") && !entry.getFilename().equals("..")) {
+                        long mTime = entry.getAttrs().getMTime() * 1000L; // Convert to milliseconds
+                        FileInfo fileInfo = new FileInfo();
+                        fileInfo.setFolder(subfolder);
+                        fileInfo.setFileName(entry.getFilename());
+                        fileInfo.setRemotePath(subfolder + SFTP_FILE_SEPARATOR + entry.getFilename());
+                        fileInfo.setModificationTime(mTime);
+                        recentFiles.add(fileInfo);
+                    }
+                }
+            } catch (SftpException e) {
+                log.error("Error while listing files : {}", e.getMessage());
+            }
+        }
+        return recentFiles;
+    }
