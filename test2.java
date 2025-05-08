@@ -1,18 +1,7 @@
-@Test
-void testFindListOfFilesSkipsDirectories() throws SftpException {
-    String subfolder = "/folder";
-    List<String> subfolders = List.of(subfolder);
-
-    ChannelSftp.LsEntry dirEntry = mock(ChannelSftp.LsEntry.class);
-    SftpATTRS attrs = mock(SftpATTRS.class);
-    when(dirEntry.getAttrs()).thenReturn(attrs);
-    when(attrs.isDir()).thenReturn(true);
-
-    Vector<ChannelSftp.LsEntry> fileVector = new Vector<>();
-    fileVector.add(dirEntry);
-
-    when(channelSftp.ls(subfolder)).thenReturn(fileVector);
-
-    List<FileInfo> result = sftpClient.findListOfFiles(subfolders);
-    assertTrue(result.isEmpty(), "Directory entries should be skipped");
-}
+public void uploadFile(String localFilePath, String remoteFilePath) throws JSchException, SftpException {
+        File localFile = new File(localFilePath);
+        if (!localFile.exists()) {
+            throw new SftpException(ChannelSftp.SSH_FX_NO_SUCH_FILE, "Local file does not exist: " + localFilePath);
+        }
+        channelSftp.put(localFilePath, remoteFilePath);
+    }
