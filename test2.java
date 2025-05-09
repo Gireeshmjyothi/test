@@ -107,3 +107,23 @@ gitProperties {
 	keys = ['git.branch', 'git.commit.id', 'git.commit.time', 'git.commit.id.abbrev']
 }
 //java --add-exports=java.base/sun.nio.ch=ALL-UNNAMED -jar build/libs/your-app.war
+
+
+
+import lombok.*;
+import jakarta.persistence.Id;
+import org.springframework.data.gemfire.mapping.annotation.Region;
+
+import java.io.Serializable;
+
+@Getter
+@Setter
+@Region("Bank_Info")
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class BankInfo implements Serializable {
+    @Id
+
+}
+Cannot resolve symbol 'persistence'
