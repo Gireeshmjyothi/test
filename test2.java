@@ -1,84 +1,109 @@
-@ExtendWith(MockitoExtension.class)
-class SftpClientServiceTest {
-
-    @Mock
-    private SftpClientHelper sftpClient;
-
-    @InjectMocks
-    private SftpClientService sftpClientService;
-
-    private final FileInfo file1 = new FileInfo("file1.txt", "/RnS/SBI", "/RnS/SBI/file1.txt", System.currentTimeMillis());
-
-    @BeforeEach
-    void setup() {
-        // Common setup if needed
-    }
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version "${spring_boot}"
+	id 'io.spring.dependency-management' version "${dependency_plugin}"
+	id 'com.gorylenko.gradle-git-properties' version "${gorylenko_plugin}"
 }
 
-@Test
-void testFindListOfFiles_NoFilesFound() throws Exception {
-    when(sftpClient.findListOfFiles(anyList())).thenReturn(List.of());
+group = 'com.epay'
+version = "${version}"
 
-    sftpClientService.findListOfFiles();
-
-    verify(sftpClient).connect();
-    verify(sftpClient).disconnect();
-    verify(sftpClient).findListOfFiles(anyList());
-    verifyNoMoreInteractions(sftpClient);
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
 }
 
-@Test
-void testFindListOfFiles_OneFileProcessedSuccessfully() throws Exception {
-    when(sftpClient.findListOfFiles(anyList())).thenReturn(List.of(file1));
-    doNothing().when(sftpClient).downloadFile(eq(file1.getRemotePath()), anyString());
-    doNothing().when(sftpClient).moveFile(eq(file1.getRemotePath()), anyString());
-    doNothing().when(sftpClient).createAcknowledgmentFile(eq(file1.getFileName()), eq(true), anyString());
-
-    sftpClientService.findListOfFiles();
-
-    verify(sftpClient).connect();
-    verify(sftpClient).findListOfFiles(anyList());
-    verify(sftpClient).downloadFile(eq(file1.getRemotePath()), anyString());
-    verify(sftpClient).moveFile(eq(file1.getRemotePath()), contains("processed"));
-    verify(sftpClient).createAcknowledgmentFile(eq(file1.getFileName()), eq(true), anyString());
-    verify(sftpClient).disconnect();
+configurations {
+	compileOnly {
+		extendsFrom annotationProcessor
+	}
+}
+configurations.configureEach {
+	exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+	exclude group: 'ch.qos.logback', module: 'logback-classic'
+	exclude group: 'ch.qos.logback', module: 'logback-core'
 }
 
-@Test
-void testFindListOfFiles_DownloadFails() throws Exception {
-    when(sftpClient.findListOfFiles(anyList())).thenReturn(List.of(file1));
-    doThrow(new SftpException(0, "download failed")).when(sftpClient).downloadFile(eq(file1.getRemotePath()), anyString());
-    doNothing().when(sftpClient).createAcknowledgmentFile(eq(file1.getFileName()), eq(false), anyString());
-
-    sftpClientService.findListOfFiles();
-
-    verify(sftpClient).downloadFile(eq(file1.getRemotePath()), anyString());
-    verify(sftpClient, never()).moveFile(anyString(), anyString());
-    verify(sftpClient).createAcknowledgmentFile(eq(file1.getFileName()), eq(false), anyString());
+repositories {
+	mavenCentral()
+	flatDir {
+		dirs "libs"
+	}
+	maven {
+		url "https://gitlab.epay.sbi/api/v4/projects/48/packages/maven"
+		credentials(PasswordCredentials) {
+			username = project.findProperty("gitlab.username")?: System.getenv("CI_USERNAME")
+			password = project.findProperty("gitlab.token")?: System.getenv("CI_JOB_TOKEN")
+		}
+		authentication {
+			basic(BasicAuthentication)
+		}
+	}
 }
 
-@Test
-void testFindListOfFiles_AckFileCreationFails() throws Exception {
-    when(sftpClient.findListOfFiles(anyList())).thenReturn(List.of(file1));
-    doNothing().when(sftpClient).downloadFile(anyString(), anyString());
-    doNothing().when(sftpClient).moveFile(anyString(), anyString());
-    doThrow(new SftpException(0, "ack failed")).when(sftpClient)
-        .createAcknowledgmentFile(eq(file1.getFileName()), eq(true), anyString());
+dependencies {
+	implementation ('org.springframework.boot:spring-boot-starter-web') {
+		exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+	}
+	implementation 'org.springframework.boot:spring-boot-starter-webflux'
+	implementation 'org.springframework.boot:spring-boot-starter-tomcat'
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${swagger}"
+	implementation "org.apache.tomcat.embed:tomcat-embed-jasper:${tomcat_jasper}"
+	implementation "jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:${jakarta_jstl}"
+	implementation "org.glassfish.web:jakarta.servlet.jsp.jstl:${jakarta_jstl}"
+	implementation "javax.servlet:javax.servlet-api:${javax_servlet_api}"
 
-    sftpClientService.findListOfFiles();
+	implementation "com.oracle.database.jdbc:ojdbc11:${oracle_driver}"
 
-    verify(sftpClient).createAcknowledgmentFile(eq(file1.getFileName()), eq(true), anyString());
+	//Spark dependency
+	implementation("org.apache.spark:spark-core_2.13:${apache_spark}") {
+		exclude group: 'org.eclipse.jetty'
+		exclude group: 'org.eclipse.jetty.aggregate'
+		exclude group: 'org.eclipse.jetty.jetty'
+	}
+	implementation("org.apache.spark:spark-sql_2.13:${apache_spark}") {
+		exclude group: 'org.eclipse.jetty'
+	}
+	implementation "software.amazon.awssdk:s3:${aws_s3}"
+
+	implementation "name:logging-service-${epay_logging}"
+
+	//kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	//lombok
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+
+	//mapstruct
+	implementation "org.mapstruct:mapstruct:${mapstruct}"
+	annotationProcessor "org.mapstruct:mapstruct-processor:${mapstruct}"
+
+	//gemfire
+	implementation "com.vmware.gemfire:gemfire-core:${gemfire}"
+	implementation "com.vmware.gemfire:gemfire-cq:${gemfire}"
+	implementation "com.vmware.gemfire:spring-boot-3.3-gemfire-10.1:${gemfire_spring}"
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-@Test
-void testFindListOfFiles_ConnectionFails() throws Exception {
-    doThrow(new JSchException("connection failed")).when(sftpClient).connect();
-
-    sftpClientService.findListOfFiles();
-
-    verify(sftpClient).connect();
-    verify(sftpClient).disconnect();
-    verifyNoMoreInteractions(sftpClient);
+tasks.named('test') {
+	useJUnitPlatform()
+}
+bootRun {
+	jvmArgs += [
+			"--add-exports", "java.base/sun.nio.ch=ALL-UNNAMED"
+	]
 }
 
+springBoot  {
+	buildInfo()
+}
 
+gitProperties {
+	failOnNoGitDirectory = false // Avoid build failure if .git directory is missing
+	keys = ['git.branch', 'git.commit.id', 'git.commit.time', 'git.commit.id.abbrev']
+}
+//java --add-exports=java.base/sun.nio.ch=ALL-UNNAMED -jar build/libs/your-app.war
