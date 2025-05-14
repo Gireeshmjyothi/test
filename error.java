@@ -1,2 +1,4 @@
-Setting hive.metastore.warehouse.dir ('null') to the value of spark.sql.warehouse.dir.
-2025-05-14 16:03:38.705 INFO | com.epay.rns.service.SparkService:83 | principal=  | scenario= | operation= | correlation= | getDbDataSet | Warehouse path is 'file:/F:/Epay/epay_recon_settlement_service/spark-warehouse'.
+java.lang.IllegalStateException: LiveListenerBus is stopped.
+	at org.apache.spark.scheduler.LiveListenerBus.addToQueue(LiveListenerBus.scala:92)
+	at org.apache.spark.scheduler.LiveListenerBus.addToStatusQueue(LiveListenerBus.scala:75)
+	at org.apache.spark.sql.internal.SharedState.<init>(SharedState.scala:115)
