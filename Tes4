@@ -1,51 +1,16 @@
-Here's a clear and reusable Jira story for your use case:
-
-
----
-
-Title: Implement Bank Config Retrieval with GemFire Cache Fallback and Admin Service Integration
-
-Story:
-Implement logic to retrieve bank configuration data from GemFire cache.
-If the data is not available in the cache, fallback to calling the Admin Service API to fetch the data.
-Cache the fetched data from the Admin Service into GemFire for future requests.
-Include unit and integration tests to verify all scenarios.
-
-Acceptance Criteria:
-
-1. Bank configuration is first fetched from GemFire cache.
-
-
-2. If data is not present in the cache, Admin Service is called via WebClient.
-
-
-3. The response from Admin Service is cached in GemFire for future use.
-
-
-4. Proper error handling is in place for cache miss and API failure.
-
-
-5. Logs are added for traceability when fallback is triggered.
-
-
-6. Unit tests are added to validate:
-
-Cache hit scenario
-
-Cache miss and fallback to Admin Service
-
-Cache population after fallback
-
-
-
-7. Integration tests are added to verify end-to-end behavior.
-
-
-
-Story Points: 5 (can be 8 if multiple config types or complex mapping is involved)
-
-
----
-
-Let me know if you want the subtasks broken down as well.
-
+ID	UUID
+BANK_ID	NUMBER
+SFTP_PATH	VARCHAR
+FILE_TYPE	VARCHAR
+FILE_DELIMETER	VARCHAR
+FILE_HEADER_ROW	NUMBER
+FILE_HEADER	VARCHAR
+FILE_HEADER_MAP	VARCHAR
+FILE_READ_FROM	NUMBER
+FILE_HASH_ROW	NUMBER
+FILE_HASH_HEADER	VARCHAR
+FILE_SUMMARY_ROW	NUMBER
+FILE_SUMMARY_HEADER	VARCHAR
+FILE_ENCRYPTED	VARCHAR
+FILE_ENC_LEVEL	VARCHAR
+FILE_ENC_KEY	VARCHAR
