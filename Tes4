@@ -1,16 +1,19 @@
-ID	UUID
-BANK_ID	NUMBER
-SFTP_PATH	VARCHAR
-FILE_TYPE	VARCHAR
-FILE_DELIMETER	VARCHAR
-FILE_HEADER_ROW	NUMBER
-FILE_HEADER	VARCHAR
-FILE_HEADER_MAP	VARCHAR
-FILE_READ_FROM	NUMBER
-FILE_HASH_ROW	NUMBER
-FILE_HASH_HEADER	VARCHAR
-FILE_SUMMARY_ROW	NUMBER
-FILE_SUMMARY_HEADER	VARCHAR
-FILE_ENCRYPTED	VARCHAR
-FILE_ENC_LEVEL	VARCHAR
-FILE_ENC_KEY	VARCHAR
+{
+  "id": "String",
+  "uuid": "String",
+  "bankId": "int",
+  "sftpPath": "String",
+  "fileType": "String",
+  "fileDelimeter": "String",
+  "fileHeaderRow": "int",
+  "fileHeader": "String",
+  "fileHeaderMap": "String",
+  "fileReadFrom": "int",
+  "fileHashRow": "int",
+  "fileHashHeader": "String",
+  "fileSummaryRow": "int",
+  "fileSummaryHeader": "String",
+  "fileEncrypted": "String",
+  "fileEncLevel": "String",
+  "fileEncKey": "String"
+}
