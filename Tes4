@@ -1,46 +1,51 @@
-Here’s a generic Jira story for setting up a scheduler and Liquibase configuration, written in a reusable and team-friendly format:
+Here's a clear and reusable Jira story for your use case:
 
 
 ---
 
-Title: Configure Application Scheduler and Liquibase for Database Version Control
+Title: Implement Bank Config Retrieval with GemFire Cache Fallback and Admin Service Integration
 
 Story:
-Set up a scheduled task mechanism within the application to run time-based jobs.
-Integrate Liquibase for managing database schema changes through version-controlled changelogs.
-This setup ensures automated background processing and reliable, trackable DB updates.
+Implement logic to retrieve bank configuration data from GemFire cache.
+If the data is not available in the cache, fallback to calling the Admin Service API to fetch the data.
+Cache the fetched data from the Admin Service into GemFire for future requests.
+Include unit and integration tests to verify all scenarios.
 
 Acceptance Criteria:
 
-1. Scheduler is configured using Spring's @Scheduled or equivalent mechanism.
+1. Bank configuration is first fetched from GemFire cache.
 
 
-2. Scheduled tasks run at defined intervals or cron expressions.
+2. If data is not present in the cache, Admin Service is called via WebClient.
 
 
-3. Task logic is modular, configurable, and idempotent.
+3. The response from Admin Service is cached in GemFire for future use.
 
 
-4. Liquibase is integrated into the project for database versioning.
+4. Proper error handling is in place for cache miss and API failure.
 
 
-5. SQL or YAML changelogs are created and executed correctly on application startup.
+5. Logs are added for traceability when fallback is triggered.
 
 
-6. Liquibase maintains a changelog table to track applied changes.
+6. Unit tests are added to validate:
+
+Cache hit scenario
+
+Cache miss and fallback to Admin Service
+
+Cache population after fallback
 
 
-7. Environment-specific configurations (e.g., disabling Liquibase in prod) are externalized.
 
-
-8. Logging is added for both scheduler execution and Liquibase changes.
+7. Integration tests are added to verify end-to-end behavior.
 
 
 
-Story Points: 5 (can be increased to 8 if there are multiple scheduled jobs or complex changelog structure)
+Story Points: 5 (can be 8 if multiple config types or complex mapping is involved)
 
 
 ---
 
-Let me know if you’d like this split into subtasks or if the scheduler has any specific business logic.
+Let me know if you want the subtasks broken down as well.
 
