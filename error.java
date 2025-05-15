@@ -1,33 +1,33 @@
-Certainly! Here's an optimized and more concise version of your story point:
+Here's a crisp and Jira-friendly story point you can use for your AWS S3 integration:
 
 
 ---
 
-Story Title: SFTP Client: Download and Move File Implementation
+Story Title: AWS S3 Integration for File Upload and Download
 
 Story Description:
-Implement an SFTP client utility to connect to a remote SFTP server, download files from a specified source directory, and move them to a target (archive) directory post-download. The solution should support secure authentication, configurable connection settings, and robust error handling with logging.
+Implement functionality to upload and download files to/from AWS S3. The solution should use the AWS SDK, support configurable bucket names and paths, and ensure secure, efficient file handling.
 
 Acceptance Criteria:
 
-1. Connect to the SFTP server using credentials and connection details from application.properties.
+1. Upload files to the configured S3 bucket with dynamic file names/paths.
 
 
-2. Download files from the configured source directory.
+2. Download files from S3 using the object key.
 
 
-3. Move successfully downloaded files to the target/archive directory.
+3. Externalize AWS credentials and bucket configuration.
 
 
-4. Ensure proper logging for each operation (connect, download, move, errors).
+4. Include error handling and logging for both operations.
 
 
-5. Handle exceptions and implement retry logic for transient failures.
+5. Ensure support for different file types (e.g., CSV, Excel, PDF).
 
 
 
 
 ---
 
-Let me know if you want to include test cases or technical subtasks as well.
+Let me know if you'd like to add multipart uploads or pre-signed URL support in the scope.
 
