@@ -1,47 +1,46 @@
-Got it! Here's a more generic version of the Jira story without using "I", making it suitable for team-wide reference:
+Here’s a generic Jira story for setting up a scheduler and Liquibase configuration, written in a reusable and team-friendly format:
 
 
 ---
 
-Title: Setup GemFire Configuration, S3 Integration, and WebClient for Admin Service Communication
+Title: Configure Application Scheduler and Liquibase for Database Version Control
 
 Story:
-Configure Apache Geode (GemFire) for caching, including region definitions and data serialization.
-Integrate Amazon S3 for file storage operations.
-Implement WebClient configuration to enable communication with external Admin Service APIs.
-This setup ensures efficient caching, external file handling, and seamless service integration.
+Set up a scheduled task mechanism within the application to run time-based jobs.
+Integrate Liquibase for managing database schema changes through version-controlled changelogs.
+This setup ensures automated background processing and reliable, trackable DB updates.
 
 Acceptance Criteria:
 
-1. GemFire cache is properly configured with required regions.
+1. Scheduler is configured using Spring's @Scheduled or equivalent mechanism.
 
 
-2. Region types (e.g., partitioned or replicated) are aligned with business requirements.
+2. Scheduled tasks run at defined intervals or cron expressions.
 
 
-3. S3 client is configured using secure credential management.
+3. Task logic is modular, configurable, and idempotent.
 
 
-4. Utility methods for file operations (upload/download) to/from S3 are implemented and tested.
+4. Liquibase is integrated into the project for database versioning.
 
 
-5. WebClient is configured with appropriate timeouts, headers, and base URL for Admin Service.
+5. SQL or YAML changelogs are created and executed correctly on application startup.
 
 
-6. API interactions with Admin Service are functional with proper error handling and logging.
+6. Liquibase maintains a changelog table to track applied changes.
 
 
-7. Configuration properties are externalized for environment-specific values.
+7. Environment-specific configurations (e.g., disabling Liquibase in prod) are externalized.
 
 
-8. Unit/integration tests cover all core logic and configurations.
+8. Logging is added for both scheduler execution and Liquibase changes.
 
 
 
-Story Points: 8
+Story Points: 5 (can be increased to 8 if there are multiple scheduled jobs or complex changelog structure)
 
 
 ---
 
-Let me know if you also want to list sub-tasks under this story.
+Let me know if you’d like this split into subtasks or if the scheduler has any specific business logic.
 
