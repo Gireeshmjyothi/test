@@ -1,32 +1,18 @@
-Got it! Here's a more generic and professional version of the Jira story point without using "I":
-
-
----
-
-Title: Implement Retrieval of Bank File Configuration by SFTP Path and File Type
-
-Story:
-
-Enable retrieval of bank file configuration based on the provided sftpPath and fileType.
-This will support accurate identification and processing of bank files based on their location and format.
-
-Acceptance Criteria:
-
-1. The system should retrieve the bank file configuration matching the given sftpPath and fileType.
-
-
-2. If no matching configuration is found, a clear and meaningful response or error should be returned.
-
-
-3. The implementation should handle edge cases such as invalid inputs or multiple matching records (if applicable).
-
-
-4. Unit tests should be added to cover all relevant scenarios.
-
-
-
-
----
-
-Let me know if you’d like this tailored for a specific project format or team convention.
-
+CREATE TABLE FILE_CONFIG (
+  ID                  UUID PRIMARY KEY,
+  BANK_ID             INT,
+  SFTP_PATH           VARCHAR(255),
+  FILE_TYPE           VARCHAR(100),
+  FILE_DELIMETER      VARCHAR(10),
+  FILE_HEADER_ROW     INT,
+  FILE_HEADER         VARCHAR(1000),
+  FILE_HEADER_MAP     VARCHAR(2000),
+  FILE_READ_FROM      INT,
+  FILE_HASH_ROW       INT,
+  FILE_HASH_HEADER    VARCHAR(500),
+  FILE_SUMMARY_ROW    INT,
+  FILE_SUMMARY_HEADER VARCHAR(500),
+  FILE_ENCRYPTED      VARCHAR(50),
+  FILE_ENC_LEVEL      VARCHAR(100),
+  FILE_ENC_KEY        VARCHAR(255)
+);
