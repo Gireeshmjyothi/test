@@ -1,18 +1,32 @@
-{
-  "uuid": "abc123-xyz456-uuid789",
-  "bankId": 101,
-  "sftpPath": "/bank/data/files/",
-  "fileType": "CSV",
-  "fileDelimeter": ",",
-  "fileHeaderRow": 1,
-  "fileHeader": "ID,Name,Amount",  // Comma-separated string
-  "fileHeaderMap": "{\"id\":\"ID\", \"name\":\"Name\", \"amount\":\"Amount\"}",
-  "fileReadFrom": 0,
-  "fileHashRow": 10,
-  "fileHashHeader": "Hash-Value",
-  "fileSummaryRow": 20,
-  "fileSummaryHeader": "Summary",
-  "fileEncrypted": "YES",
-  "fileEncLevel": "HIGH",
-  "fileEncKey": "key@123"
-}
+Got it! Here's a more generic and professional version of the Jira story point without using "I":
+
+
+---
+
+Title: Implement Retrieval of Bank File Configuration by SFTP Path and File Type
+
+Story:
+
+Enable retrieval of bank file configuration based on the provided sftpPath and fileType.
+This will support accurate identification and processing of bank files based on their location and format.
+
+Acceptance Criteria:
+
+1. The system should retrieve the bank file configuration matching the given sftpPath and fileType.
+
+
+2. If no matching configuration is found, a clear and meaningful response or error should be returned.
+
+
+3. The implementation should handle edge cases such as invalid inputs or multiple matching records (if applicable).
+
+
+4. Unit tests should be added to cover all relevant scenarios.
+
+
+
+
+---
+
+Let me know if you’d like this tailored for a specific project format or team convention.
+
