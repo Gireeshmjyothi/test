@@ -1,58 +1,18 @@
-Here's the Java entity class for the provided structure:
-
-import lombok.Data;
-import javax.persistence.*;
-
-@Entity
-@Table(name = "your_table_name") // Replace with actual table name
-@Data
-public class FileConfig {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
-
-    private String uuid;
-
-    private int bankId;
-
-    private String sftpPath;
-
-    private String fileType;
-
-    private String fileDelimeter;
-
-    private int fileHeaderRow;
-
-    private String fileHeader;
-
-    private String fileHeaderMap;
-
-    private int fileReadFrom;
-
-    private int fileHashRow;
-
-    private String fileHashHeader;
-
-    private int fileSummaryRow;
-
-    private String fileSummaryHeader;
-
-    private String fileEncrypted;
-
-    private String fileEncLevel;
-
-    private String fileEncKey;
+{
+  "uuid": "abc123-xyz456-uuid789",
+  "bankId": 101,
+  "sftpPath": "/bank/data/files/",
+  "fileType": "CSV",
+  "fileDelimeter": ",",
+  "fileHeaderRow": 1,
+  "fileHeader": "ID,Name,Amount",  // Comma-separated string
+  "fileHeaderMap": "{\"id\":\"ID\", \"name\":\"Name\", \"amount\":\"Amount\"}",
+  "fileReadFrom": 0,
+  "fileHashRow": 10,
+  "fileHashHeader": "Hash-Value",
+  "fileSummaryRow": 20,
+  "fileSummaryHeader": "Summary",
+  "fileEncrypted": "YES",
+  "fileEncLevel": "HIGH",
+  "fileEncKey": "key@123"
 }
-
-Notes:
-
-Replace "your_table_name" with your actual database table name.
-
-Adjust @Id strategy if you use UUID or another custom ID type.
-
-Add annotations like @Column(name = "...") if your database column names differ from field names.
-
-
-Let me know if you want to include auditing fields (e.g., createdAt, updatedAt) or JPA converters.
-
