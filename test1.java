@@ -1,10 +1,15 @@
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 1, 'TYPE_1', 'ATRN1001', 101.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2001', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 1');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 2, 'TYPE_2', 'ATRN1002', 102.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2002', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 2');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 3, 'TYPE_3', 'ATRN1003', 103.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2003', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 3');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 4, 'TYPE_4', 'ATRN1004', 104.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2004', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 4');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 5, 'TYPE_5', 'ATRN1005', 105.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2005', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 5');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 6, 'TYPE_6', 'ATRN1006', 106.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2006', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 6');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 7, 'TYPE_7', 'ATRN1007', 107.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2007', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 7');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 8, 'TYPE_8', 'ATRN1008', 108.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2008', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 8');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 9, 'TYPE_9', 'ATRN1009', 109.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2009', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 9');
-INSERT INTO RECON_FILE_DTLS VALUES (SYS_GUID(), SYS_GUID(), 10, 'TYPE_10', 'ATRN1010', 110.00, TO_NUMBER(TO_CHAR(SYSDATE, 'YYYYMMDD')), 'BRN2010', 'PENDING', 'NOT_RECONCILED', SYSTIMESTAMP, 'NOT_SETTLED', SYSTIMESTAMP, 'Test remark for row 10');
+Subject: Discrepancy in Leave Deduction for April – Request for Review
+
+Dear [HR’s Name],
+
+I hope you’re doing well.
+
+I am writing to bring to your attention a discrepancy in my April 2025 leave records. According to my records, I had taken 7 days of leave in April, including applicable sandwich leaves. However, I noticed that 9 days of leave have been deducted.
+
+Additionally, on 7th April, I had a logout miss on the Connecto mobile app, for which I had received manager approval. Despite that, it seems to have been counted towards my leave.
+
+I have attached a screenshot of my Connecto login history for your reference. I kindly request you to review and help rectify the leave count.
+
+Please let me know if you require any further details from my side.
+
+Thank you for your support.
