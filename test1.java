@@ -3,3 +3,9 @@
 Caused by: oracle.jdbc.OracleDatabaseException: ORA-00933: SQL command not properly ended
 
    String query = String.format("(SELECT * FROM %s WHERE %s) AS filtered_data", tableName, whereClause);
+
+
+String query = String.format(
+    "SELECT * FROM (SELECT * FROM MERCHANT_ORDER_PAYMENTS WHERE CREATED_DATE BETWEEN %d AND %d) filtered_data",
+    startMillis, endMillis
+);
