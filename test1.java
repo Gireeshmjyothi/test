@@ -5,7 +5,17 @@ Caused by: oracle.jdbc.OracleDatabaseException: ORA-00933: SQL command not prope
    String query = String.format("(SELECT * FROM %s WHERE %s) AS filtered_data", tableName, whereClause);
 
 
-String query = String.format(
-    "SELECT * FROM (SELECT * FROM MERCHANT_ORDER_PAYMENTS WHERE CREATED_DATE BETWEEN %d AND %d) filtered_data",
-    startMillis, endMillis
-);
+public Dataset<Row> readFromDBWithFilter(long startMillis, long endMillis, String tableName) {
+        String query = String.format(
+                "SELECT * FROM (SELECT * FROM %s WHERE CREATED_DATE BETWEEN %d AND %d) filtered_data",
+                tableName, startMillis, endMillis
+                );
+        return sparkSession.read()
+                .format("jdbc")
+                .option("url", jdbcConfig.getJdbcUrl())
+                .option("driver", jdbcDriver)
+                .option("dbtable", query)
+                .option("user", jdbcUserName)
+                .option("password", jdbcPassword)
+                .load();
+    }
