@@ -6,3 +6,26 @@
 	at org.apache.spark.sql.jdbc.JdbcDialect.$anonfun$createConnectionFactory$1(JdbcDialects.scala:158)
 	at org.apache.spark.sql.jdbc.JdbcDialect.$anonfun$createConnectionFactory$1$adapted(JdbcDialects.scala:157)
 	at org.apache.spark.sql.execution.datasources.jdbc.JDBCRDD.compute(JDBCRDD.scala:258)
+
+
+	  @Value("${spring.datasource.url}")
+    private String jdbcUrl;
+
+    @Value("${spring.datasource.username}")
+    private String jdbcUserName;
+
+    @Value("${spring.datasource.password}")
+    private String jdbcPassword;
+
+    @Value("${spring.datasource.driver-class-name}")
+    private String jdbcDriver;
+
+    @Bean
+    public Properties getJdbcProperties() {
+        Properties props = new Properties();
+        props.put("user", jdbcUserName);
+        props.put("password", jdbcPassword);
+        props.put("driver", jdbcDriver);
+        return props;
+    }
+
