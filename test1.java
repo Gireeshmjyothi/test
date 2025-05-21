@@ -1,12 +1,3 @@
-Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"));
-
-Column valueMatch = joinCond;
-for (String col : columnMapping().keySet()) {
-    valueMatch = valueMatch.and(merchantDeduped.col(col).equalTo(reconDeduped.col(col)));
-}
-
-Dataset<Row> matched = merchantDeduped.join(reconDeduped, valueMatch, "inner");
-
 Dataset<Row> source = merchantDeduped.alias("src");
 Dataset<Row> target = reconDeduped.alias("tgt");
 
@@ -23,6 +14,6 @@ Dataset<Row> unmatched = source.join(target, source.col("ATRN_NUM").equalTo(targ
 Dataset<Row> sourceDuplicates = merchantOrderPayments.except(merchantDeduped);
 Dataset<Row> targetDuplicates = reconFileDtls.except(reconDeduped);
 
-
 .withColumn("atrn_num", functions.col("src.ATRN_NUM"))
-
+.withColumn("atrn_num", functions.col("ATRN_NUM")) // If only one ATRN_NUM column exists
+    
