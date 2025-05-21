@@ -25,19 +25,11 @@ public class ReconService {
     public void reconProcess() {
         logger.info("Recon process started.");
 
-        logger.info("Reading merchant order payments from DB.");
         Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE");
-
-        logger.info("Reading recon file details from DB.");
         Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE");
 
-        logger.info("Renaming recon file columns to match source schema.");
         reconFileDtls = renameColumns(reconFileDtls);
-
-        logger.info("Deduplicating merchant order payments.");
         Dataset<Row> merchantDeduped = merchantOrderPayments.dropDuplicates();
-
-        logger.info("Deduplicating recon file details.");
         Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates();
 
         Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"));
@@ -46,16 +38,9 @@ public class ReconService {
             valueMatch = valueMatch.and(merchantDeduped.col(col).equalTo(reconDeduped.col(col)));
         }
 
-        logger.info("Finding matched records.");
         Dataset<Row> matched = merchantDeduped.join(reconDeduped, valueMatch, "inner");
-
-        logger.info("Finding unmatched records.");
         Dataset<Row> unmatched = merchantDeduped.join(reconDeduped, joinCond, "left_anti");
-
-        logger.info("Finding duplicate records in source.");
         Dataset<Row> sourceDuplicates = merchantOrderPayments.except(merchantDeduped);
-
-        logger.info("Finding duplicate records in target.");
         Dataset<Row> targetDuplicates = reconFileDtls.except(reconDeduped);
 
         logDataset("Matched Rows", matched);
@@ -63,7 +48,6 @@ public class ReconService {
         logDataset("Source Duplicates", sourceDuplicates);
         logDataset("Target Duplicates", targetDuplicates);
 
-        // Write results to RECONCILIATION_RESULT
         writeToReconResult(matched
                 .withColumn("match_status", functions.lit("MATCHED"))
                 .withColumn("mismatch_reason", functions.lit(null))
@@ -97,7 +81,6 @@ public class ReconService {
 
     private Dataset<Row> readAndNormalize(String tableName, String dateColumn) {
         String query = buildQuery(tableName, dateColumn);
-        logger.info("Executing query for table '{}': {}", tableName, query);
         Dataset<Row> dataset = jdbcReaderService.readFromDBWithFilter(query);
         return normalize(dataset);
     }
@@ -126,11 +109,6 @@ public class ReconService {
         return dataset;
     }
 
-    private void logDataset(String label, Dataset<Row> dataset) {
-        logger.info("{} count: {}", label, dataset.count());
-        dataset.show(false);
-    }
-
     private Map<String, String> columnMapping() {
         Map<String, String> columnMappings = new HashMap<>();
         columnMappings.put("PAYMENT_STATUS", "STATUS");
@@ -140,6 +118,11 @@ public class ReconService {
         return columnMappings;
     }
 
+    private void logDataset(String label, Dataset<Row> dataset) {
+        logger.info("{} count: {}", label, dataset.count());
+        dataset.show(false);
+    }
+
     private void writeToReconResult(Dataset<Row> dataset) {
         dataset = dataset
                 .withColumn("atrn_num", functions.col("ATRN_NUM"))
@@ -147,8 +130,13 @@ public class ReconService {
                 .withColumn("batch_date", functions.current_date());
 
         Dataset<Row> finalDataset = dataset.select(
-                "atrn_num", "match_status", "mismatch_reason",
-                "source_json", "recon_json", "reconciled_at", "batch_date"
+                "atrn_num",
+                "match_status",
+                "mismatch_reason",
+                "source_json",
+                "recon_json",
+                "reconciled_at",
+                "batch_date"
         );
 
         finalDataset.write()
@@ -161,4 +149,4 @@ public class ReconService {
                 .mode(SaveMode.Append)
                 .save();
     }
-            }
+                    }
