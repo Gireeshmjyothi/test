@@ -1,10 +1,8 @@
-operation= | correlation= | logWarning | Lost task 0.0 in stage 1.0 (TID 1) (10.30.64.27 executor 0): java.lang.ClassNotFoundException: oracle.jdbc.OracleDriver
-	at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:445)
-	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:593)
-	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
-	at org.apache.spark.sql.execution.datasources.jdbc.DriverRegistry$.register(DriverRegistry.scala:46)
-	at org.apache.spark.sql.jdbc.JdbcDialect.$anonfun$createConnectionFactory$1(JdbcDialects.scala:158)
-	at org.apache.spark.sql.jdbc.JdbcDialect.$anonfun$createConnectionFactory$1$adapted(JdbcDialects.scala:157)
-	at org.apache.spark.sql.execution.datasources.jdbc.JDBCRDD.compute(JDBCRDD.scala:258)
-	at org.apache.spark.rdd.RDD.computeOrReadCheckpoint(RDD.scala:367)
-	at org.apache.spark.rdd.RDD.iterator(RDD.scala:331)
+spark-submit ^
+  --class com.epay.rns.ReconSettlementServiceApplication ^
+  --master spark://10.30.64.27:7077 ^
+  --deploy-mode client ^
+  --jars "C:/jdbcDriver/ojdbc11-23.5.0.24.07.jar" ^
+  --driver-class-path "C:/jdbcDriver/ojdbc11-23.5.0.24.07.jar" ^
+  --conf "spark.executor.extraClassPath=C:/jdbcDriver/ojdbc11-23.5.0.24.07.jar" ^
+  "F:/Epay/epay_recon_settlement_service/build/libs/epay_recon_settlement_service-0.0.1.jar"
