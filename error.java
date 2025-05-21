@@ -1,33 +1,10 @@
-Here's a crisp and Jira-friendly story point you can use for your AWS S3 integration:
-
-
----
-
-Story Title: AWS S3 Integration for File Upload and Download
-
-Story Description:
-Implement functionality to upload and download files to/from AWS S3. The solution should use the AWS SDK, support configurable bucket names and paths, and ensure secure, efficient file handling.
-
-Acceptance Criteria:
-
-1. Upload files to the configured S3 bucket with dynamic file names/paths.
-
-
-2. Download files from S3 using the object key.
-
-
-3. Externalize AWS credentials and bucket configuration.
-
-
-4. Include error handling and logging for both operations.
-
-
-5. Ensure support for different file types (e.g., CSV, Excel, PDF).
-
-
-
-
----
-
-Let me know if you'd like to add multipart uploads or pre-signed URL support in the scope.
-
+operation= | correlation= | logWarning | Lost task 0.0 in stage 1.0 (TID 1) (10.30.64.27 executor 0): java.lang.ClassNotFoundException: oracle.jdbc.OracleDriver
+	at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:445)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:593)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
+	at org.apache.spark.sql.execution.datasources.jdbc.DriverRegistry$.register(DriverRegistry.scala:46)
+	at org.apache.spark.sql.jdbc.JdbcDialect.$anonfun$createConnectionFactory$1(JdbcDialects.scala:158)
+	at org.apache.spark.sql.jdbc.JdbcDialect.$anonfun$createConnectionFactory$1$adapted(JdbcDialects.scala:157)
+	at org.apache.spark.sql.execution.datasources.jdbc.JDBCRDD.compute(JDBCRDD.scala:258)
+	at org.apache.spark.rdd.RDD.computeOrReadCheckpoint(RDD.scala:367)
+	at org.apache.spark.rdd.RDD.iterator(RDD.scala:331)
