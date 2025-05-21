@@ -7,9 +7,10 @@ import org.apache.spark.sql.*;
 import org.apache.spark.sql.functions;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDate;
+import java.sql.Date;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,7 @@ public class ReconService {
     private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
     private final SparkSession sparkSession;
     private final JdbcReaderService jdbcReaderService;
+    private final JdbcWriterService jdbcWriterService;
 
     private static final long START_TIMESTAMP = 1726138792000L;
     private static final long END_TIMESTAMP = 1726138793000L;
@@ -33,6 +35,7 @@ public class ReconService {
         Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates();
 
         Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"));
+
         Column valueMatch = joinCond;
         for (String col : columnMapping().keySet()) {
             valueMatch = valueMatch.and(merchantDeduped.col(col).equalTo(reconDeduped.col(col)));
@@ -48,39 +51,17 @@ public class ReconService {
         logDataset("Source Duplicates", sourceDuplicates);
         logDataset("Target Duplicates", targetDuplicates);
 
-        writeToReconResult(matched
-                .withColumn("match_status", functions.lit("MATCHED"))
-                .withColumn("mismatch_reason", functions.lit(null))
-                .withColumn("source_json", functions.to_json(functions.struct(merchantDeduped.columns())))
-                .withColumn("recon_json", functions.to_json(functions.struct(reconDeduped.columns())))
-        );
-
-        writeToReconResult(unmatched
-                .withColumn("match_status", functions.lit("UNMATCHED"))
-                .withColumn("mismatch_reason", functions.lit("Source missing in target"))
-                .withColumn("source_json", functions.to_json(functions.struct(merchantDeduped.columns())))
-                .withColumn("recon_json", functions.lit(null))
-        );
-
-        writeToReconResult(sourceDuplicates
-                .withColumn("match_status", functions.lit("DUPLICATE_SOURCE"))
-                .withColumn("mismatch_reason", functions.lit("Duplicate in source"))
-                .withColumn("source_json", functions.to_json(functions.struct(merchantOrderPayments.columns())))
-                .withColumn("recon_json", functions.lit(null))
-        );
-
-        writeToReconResult(targetDuplicates
-                .withColumn("match_status", functions.lit("DUPLICATE_TARGET"))
-                .withColumn("mismatch_reason", functions.lit("Duplicate in target"))
-                .withColumn("source_json", functions.lit(null))
-                .withColumn("recon_json", functions.to_json(functions.struct(reconFileDtls.columns())))
-        );
+        writeReconResult(matched, "MATCHED", "");
+        writeReconResult(unmatched, "UNMATCHED", "Record not present in recon file");
+        writeReconResult(sourceDuplicates, "DUPLICATE", "Duplicate in merchant source data");
+        writeReconResult(targetDuplicates, "DUPLICATE", "Duplicate in recon target data");
 
         logger.info("Recon process completed.");
     }
 
     private Dataset<Row> readAndNormalize(String tableName, String dateColumn) {
         String query = buildQuery(tableName, dateColumn);
+        logger.info("Executing query for table '{}': {}", tableName, query);
         Dataset<Row> dataset = jdbcReaderService.readFromDBWithFilter(query);
         return normalize(dataset);
     }
@@ -96,9 +77,11 @@ public class ReconService {
                 dataset = dataset.withColumn(col, functions.upper(functions.trim(dataset.col(col))));
             }
         }
+
         if (Arrays.asList(dataset.columns()).contains("ATRN_NUM")) {
             dataset = dataset.withColumn("ATRN_NUM", functions.upper(functions.trim(dataset.col("ATRN_NUM"))));
         }
+
         return dataset;
     }
 
@@ -107,6 +90,11 @@ public class ReconService {
             dataset = dataset.withColumnRenamed(entry.getValue(), entry.getKey());
         }
         return dataset;
+    }
+
+    private void logDataset(String label, Dataset<Row> dataset) {
+        logger.info("{} count: {}", label, dataset.count());
+        dataset.show(false);
     }
 
     private Map<String, String> columnMapping() {
@@ -118,35 +106,27 @@ public class ReconService {
         return columnMappings;
     }
 
-    private void logDataset(String label, Dataset<Row> dataset) {
-        logger.info("{} count: {}", label, dataset.count());
-        dataset.show(false);
-    }
+    private void writeReconResult(Dataset<Row> dataset, String matchStatus, String mismatchReason) {
+        if (dataset.isEmpty()) return;
 
-    private void writeToReconResult(Dataset<Row> dataset) {
-        dataset = dataset
-                .withColumn("atrn_num", functions.col("ATRN_NUM"))
+        Column[] columns = Arrays.stream(dataset.columns()).map(functions::col).toArray(Column[]::new);
+
+        Dataset<Row> result = dataset.withColumn("match_status", functions.lit(matchStatus))
+                .withColumn("mismatch_reason", functions.lit(mismatchReason))
+                .withColumn("source_json", functions.to_json(functions.struct(columns)))
+                .withColumn("recon_json", functions.to_json(functions.struct(columns))) // Optional: change logic if you want different JSONs
                 .withColumn("reconciled_at", functions.current_timestamp())
-                .withColumn("batch_date", functions.current_date());
+                .withColumn("batch_date", functions.lit(Date.valueOf(LocalDate.now())))
+                .select(
+                        functions.col("ATRN_NUM").alias("atrn_num"),
+                        functions.col("match_status"),
+                        functions.col("mismatch_reason"),
+                        functions.col("source_json"),
+                        functions.col("recon_json"),
+                        functions.col("reconciled_at"),
+                        functions.col("batch_date")
+                );
 
-        Dataset<Row> finalDataset = dataset.select(
-                "atrn_num",
-                "match_status",
-                "mismatch_reason",
-                "source_json",
-                "recon_json",
-                "reconciled_at",
-                "batch_date"
-        );
-
-        finalDataset.write()
-                .format("jdbc")
-                .option("url", "jdbc:oracle:thin:@//<host>:<port>/<service>")
-                .option("dbtable", "RECONCILIATION_RESULT")
-                .option("user", "<username>")
-                .option("password", "<password>")
-                .option("driver", "oracle.jdbc.OracleDriver")
-                .mode(SaveMode.Append)
-                .save();
+        jdbcWriterService.writeToOracle(result, "RECONCILIATION_RESULT");
     }
-                    }
+}
