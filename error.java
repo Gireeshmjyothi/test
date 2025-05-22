@@ -1,4 +1,10 @@
- saveToReconciliationTable(matched, "MATCHED", true);
-        saveToReconciliationTable(unmatched, "UNMATCHED", false);
-        saveToReconciliationTable(sourceDuplicates, "SOURCE_DUPLICATE", false);
-        saveToReconciliationTable(targetDuplicates, "TARGET_DUPLICATE", false);
+ logError | Exception in task 0.0 in stage 60.0 (TID 37)
+java.lang.IllegalAccessError: class org.apache.spark.sql.catalyst.util.SparkDateTimeUtils (in unnamed module @0x355ce81c) cannot access class sun.util.calendar.ZoneInfo (in module java.base) because module java.base does not export sun.util.calendar to unnamed module @0x355ce81c
+	at org.apache.spark.sql.catalyst.util.SparkDateTimeUtils.toJavaDate(SparkDateTimeUtils.scala:215)
+	at org.apache.spark.sql.catalyst.util.SparkDateTimeUtils.toJavaDate$(SparkDateTimeUtils.scala:211)
+	at org.apache.spark.sql.catalyst.util.DateTimeUtils$.toJavaDate(DateTimeUtils.scala:40)
+	at org.apache.spark.sql.catalyst.util.DateTimeUtils.toJavaDate(DateTimeUtils.scala)
+	at org.apache.spark.sql.catalyst.expressions.GeneratedClass$SpecificSafeProjection.createExternalRow_0_2$(Unknown Source)
+	at org.apache.spark.sql.catalyst.expressions.GeneratedClass$SpecificSafeProjection.apply(Unknown Source)
+	at scala.collection.Iterator$$anon$10.next(Iterator.scala:461)
+	at scala.collection.Iterator$$anon$10.next(Iterator.scala:461)
