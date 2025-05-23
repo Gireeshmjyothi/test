@@ -1,26 +1,18 @@
-Job aborted due to stage failure: Task 0 in stage 60.0 failed 1 times, most recent failure: Lost task 0.0 in stage 60.0 (TID 37) (DESKTOP-8ED0TAP.CORP.AD.SBI executor driver): java.lang.IllegalAccessError: class org.apache.spark.sql.catalyst.util.SparkDateTimeUtils (in unnamed module @0x2177849e) cannot access class sun.util.calendar.ZoneInfo (in module java.base) because module java.base does not export sun.util.calendar to unnamed module @0x2177849e
-	at org.apache.spark.sql.catalyst.util.SparkDateTimeUtils.toJavaDate(SparkDateTimeUtils.scala:215)
-	at org.apache.spark.sql.catalyst.util.SparkDateTimeUtils.toJavaDate$(SparkDateTimeUtils.scala:211)
-	at org.apache.spark.sql.catalyst.util.DateTimeUtils$.toJavaDate(DateTimeUtils.scala:40)
-	at org.apache.spark.sql.catalyst.util.DateTimeUtils.toJavaDate(DateTimeUtils.scala)
-	at org.apache.spark.sql.catalyst.expressions.GeneratedClass$SpecificSafeProjection.createExternalRow_0_2$(Unknown Source)
-	at org.apache.spark.sql.catalyst.expressions.GeneratedClass$SpecificSafeProjection.apply(Unknown Source)
-	at scala.collection.Iterator$$anon$10.next(Iterator.scala:461)
-	at scala.collection.Iterator$$anon$10.next(Iterator.scala:461)
-	at org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils$.savePartition(JdbcUtils.scala:734)
-	at org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils$.$anonfun$saveTable$1(JdbcUtils.scala:904)
-	at org.apache.spark.sql.execution.datasources.jdbc.JdbcUtils$.$anonfun$saveTable$1$adapted(JdbcUtils.scala:903)
-	at org.apache.spark.rdd.RDD.$anonfun$foreachPartition$2(RDD.scala:1039)
-	at org.apache.spark.rdd.RDD.$anonfun$foreachPartition$2$adapted(RDD.scala:1039)
-	at org.apache.spark.SparkContext.$anonfun$runJob$5(SparkContext.scala:2433)
-	at org.apache.spark.scheduler.ResultTask.runTask(ResultTask.scala:93)
-	at org.apache.spark.TaskContext.runTaskWithListeners(TaskContext.scala:166)
-	at org.apache.spark.scheduler.Task.run(Task.scala:141)
-	at org.apache.spark.executor.Executor$TaskRunner.$anonfun$run$4(Executor.scala:620)
-	at org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally(SparkErrorUtils.scala:64)
-	at org.apache.spark.util.SparkErrorUtils.tryWithSafeFinally$(SparkErrorUtils.scala:61)
-	at org.apache.spark.util.Utils$.tryWithSafeFinally(Utils.scala:94)
-	at org.apache.spark.executor.Executor$TaskRunner.run(Executor.scala:623)
-	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
-	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
-	at java.base/java.lang.Thread.run(Thread.java:1583)
+spark:
+  master: local[*]
+  driver:
+    extraJavaOptions: "--add-exports=java.base/sun.util.calendar=ALL-UNNAMED"
+  executor:
+    extraJavaOptions: "--add-exports=java.base/sun.util.calendar=ALL-UNNAMED"
+
+
+
+SparkConf sparkConf = new SparkConf()
+    .setAppName("YourApp")
+    .setMaster("local[*]")
+    .set("spark.driver.extraJavaOptions", "--add-exports=java.base/sun.util.calendar=ALL-UNNAMED")
+    .set("spark.executor.extraJavaOptions", "--add-exports=java.base/sun.util.calendar=ALL-UNNAMED");
+
+SparkSession spark = SparkSession.builder()
+    .config(sparkConf)
+    .getOrCreate();
