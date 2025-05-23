@@ -1,2 +1,1 @@
-.withColumn("source_json", functions.to_json(functions.struct(structFromColumnsStartingWith(dataset, "SRC_"))))
-.withColumn("recon_json", functions.to_json(functions.struct(structFromColumnsStartingWith(dataset, "TGT_"))))
+Caused by: java.lang.UnsatisfiedLinkError: C:\Users\v1014352\AppData\Local\Temp\libzstd-jni-1.5.7-313020625145549955547.dll: Access is denied
