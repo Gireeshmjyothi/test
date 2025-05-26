@@ -1,45 +1,68 @@
- /F/software/spark-3.5.5-bin-hadoop3/sbin
-$ ./start-master.sh
-ps: unknown option -- o
-Try `ps --help' for more information.
-hostname: unknown option -- f
-Try 'hostname --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-starting org.apache.spark.deploy.master.Master, logging to F:\software\spark-3.5.5-bin-hadoop3/logs/spark--org.apache.spark.deploy.master.Master-1-DESKTOP-8ED0TAP.out
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-ps: unknown option -- o
-Try `ps --help' for more information.
-failed to launch: nice -n 0 F:\software\spark-3.5.5-bin-hadoop3/bin/spark-class org.apache.spark.deploy.master.Master --host --port 7077 --webui-port 8080
-  25/05/23 16:12:52 INFO Master: Started daemon with process name: 5620@DESKTOP-8ED0TAP
-  Usage: Master [options]
+ public void reconProcess(long startTime, long endTime) {
+        logger.info("Recon process started.");
+        long processStartTime = currentTimeMillis();
+        logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
+        // Load datasets
+        logger.info("Reading merchant order payments from DB.");
+        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime)
+                .alias("src");
 
-  Options:
-    -i HOST, --ip HOST     Hostname to listen on (deprecated, please use --host or -h)
-    -h HOST, --host HOST   Hostname to listen on
-    -p PORT, --port PORT   Port to listen on (default: 7077)
-    --webui-port PORT      Port for web UI (default: 8080)
-    --properties-file FILE Path to a custom Spark properties file.
-                           Default is conf/spark-defaults.conf.
-full log in F:\software\spark-3.5.5-bin-hadoop3/logs/spark--org.apache.spark.deploy.master.Master-1-DESKTOP-8ED0TAP.out
+        logger.info("Reading recon file details from DB.");
+        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime)
+                .alias("tgt");
+
+        // Rename recon file columns to match source
+        logger.info("Renaming recon file columns to match source schema.");
+        reconFileDtls = renameColumns(reconFileDtls).alias("tgt");
+
+        // Deduplicate both datasets
+        logger.info("Deduplicating merchant order payments.");
+        Dataset<Row> merchantDeduped = merchantOrderPayments.dropDuplicates().alias("src");
+
+        logger.info("Deduplicating recon file details.");
+        Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates().alias("tgt");
+
+        // Join condition on ATRN_NUM
+        Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"));
+
+        // Value match on all mapped fields
+        Column valueMatch = joinCond;
+        for (String col : columnMapping().keySet()) {
+            valueMatch = valueMatch.and(
+                    merchantDeduped.col(col).equalTo(reconDeduped.col(col))
+            );
+        }
+
+        // Matched records
+        logger.info("Finding matched records.");
+        Dataset<Row> matched = merchantDeduped.join(reconDeduped, valueMatch, "inner")
+                .select("src.*"); // Take only source columns to avoid ambiguity
+
+        // Unmatched records from source
+        logger.info("Finding unmatched records (source not in target).");
+        Dataset<Row> unmatched = merchantDeduped.join(reconDeduped, joinCond, "left_anti");
+
+        // Duplicate Detection by ATRN_NUM
+        logger.info("Finding duplicate records in source.");
+        Dataset<Row> sourceDuplicates = getDuplicates(merchantOrderPayments, "ATRN_NUM")
+                .join(merchantOrderPayments, "ATRN_NUM")
+                .alias("src_dup");
+
+        logger.info("Finding duplicate records in target.");
+        Dataset<Row> targetDuplicates = getDuplicates(reconFileDtls, "ATRN_NUM")
+                .join(reconFileDtls, "ATRN_NUM")
+                .alias("tgt_dup");
+
+        // Log summaries
+        logDataset("Matched Rows", matched);
+        logDataset("Unmatched Rows", unmatched);
+        logDataset("Target Duplicates", targetDuplicates);
+
+        // Save results
+        logger.info("Inserting reconciliation results into DB.");
+        saveToReconciliationTable(matched, "MATCHED", "matched");
+        saveToReconciliationTable(unmatched, "UNMATCHED", "atrn not matched");
+        saveToReconciliationTable(targetDuplicates, "TARGET_DUPLICATE", "duplicate atrn in recon file details");
+        logger.info("time took to calculate and process : {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
+        logger.info("Recon process completed.");
+    }
