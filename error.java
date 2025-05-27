@@ -1,53 +1,24 @@
-logger.info("Reading merchant order payments from DB.");
-        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime)
-                .alias("src");
-        merchantOrderPayments.printSchema();
-        logger.info("Reading recon file details from DB.");
-        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime)
-                .alias("tgt");
+// Join only on key columns (ATRN_NUM)
+Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"));
 
-        reconFileDtls.printSchema();
-        // Rename recon file columns to match source
-        logger.info("Renaming recon file columns to match source schema.");
-        reconFileDtls = renameColumns(reconFileDtls).alias("tgt");
+// Inner join on keys
+Dataset<Row> joined = merchantDeduped.join(reconDeduped, joinCond, "inner")
+        .alias("joined");
 
-        reconFileDtls.printSchema();
-        // Deduplicate both datasets
-        logger.info("Deduplicating merchant order payments.");
-        Dataset<Row> merchantDeduped = merchantOrderPayments.dropDuplicates().alias("src");
+// Now compare value columns to identify matched vs mismatched
+Column valueMatch = lit(true);
+for (String col : columnMapping().keySet()) {
+    valueMatch = valueMatch.and(
+        joined.col("src." + col).equalTo(joined.col("tgt." + col))
+    );
+}
 
-        logger.info("Deduplicating recon file details.");
-        Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates().alias("tgt");
+// Filter matched rows where values match
+Dataset<Row> matched = joined.filter(valueMatch)
+        .select("src.*");
 
-        // Join condition on ATRN_NUM
-        Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"))
-                .and(merchantDeduped.col("DEBIT_AMT").equalTo(reconDeduped.col("DEBIT_AMT")))
-                .and(merchantDeduped.col("PAYMENT_STATUS").equalTo(reconDeduped.col("PAYMENT_STATUS")))
-                .and(merchantDeduped.col("BANK_REFERENCE_NUMBER").equalTo(reconDeduped.col("BANK_REFERENCE_NUMBER")));
+// Filter rows where keys matched but values differ (partial match)
+Dataset<Row> mismatched = joined.filter(valueMatch.not());
 
-        // Value match on all mapped fields
-        Column valueMatch = joinCond;
-        for (String col : columnMapping().keySet()) {
-            valueMatch = valueMatch.and(
-                    merchantDeduped.col(col).equalTo(reconDeduped.col(col))
-            );
-        }
-
-        // Matched records
-        logger.info("Finding matched records.");
-        Dataset<Row> matched = merchantDeduped.join(reconDeduped, valueMatch, "inner")
-                .select("src.*"); // Take only source columns to avoid ambiguity
-
-        // Unmatched records from source
-        logger.info("Finding unmatched records (source not in target).");
-        Dataset<Row> unmatched = merchantDeduped.join(reconDeduped, joinCond, "left_anti");
-
-        logger.info("Finding duplicate records in target.");
-        Dataset<Row> targetDuplicates = getDuplicates(reconFileDtls, "ATRN_NUM")
-                .join(reconFileDtls, "ATRN_NUM")
-                .alias("tgt_dup");
-
-        // Log summaries
-        logDataset("Matched Rows", matched);
-        logDataset("Unmatched Rows", unmatched);
-        logDataset("Target Duplicates", targetDuplicates);
+// Unmatched = source rows that do not exist in target on key join
+Dataset<Row> unmatched = merchantDeduped.join(reconDeduped, joinCond, "left_anti");
