@@ -1,13 +1,10 @@
-org.apache.spark.sql.AnalysisException: [AMBIGUOUS_REFERENCE] Reference `tgt`.`ID` is ambiguous, could be: [`tgt`.`ID`, `tgt`.`ID`].
-	at org.apache.spark.sql.errors.QueryCompilationErrors$.ambiguousReferenceError(QueryCompilationErrors.scala:1937)
-	at org.apache.spark.sql.catalyst.expressions.package$AttributeSeq.resolve(package.scala:377)
-	at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.resolveChildren(LogicalPlan.scala:146)
-	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$anonfun$resolveExpressionByPlanChildren$1(ColumnResolutionHelper.scala:364)
-	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$anonfun$resolveExpression$3(ColumnResolutionHelper.scala:157)
-	at org.apache.spark.sql.catalyst.analysis.package$.withPosition(package.scala:100)
-	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$anonfun$resolveExpression$1(ColumnResolutionHelper.scala:164)
-	at org.apache.spark.sql.catalyst.trees.CurrentOrigin$.withOrigin(origin.scala:76)
+Dataset<Row> tgt1 = reconFileDtls.alias("tgt1");
+Dataset<Row> tgt2 = getDuplicates(reconFileDtls, "ATRN_NUM").alias("tgt2");
 
+Dataset<Row> targetDuplicates = tgt2
+    .join(tgt1, tgt2.col("ATRN_NUM").equalTo(tgt1.col("ATRN_NUM")))
+    .select("tgt1.*") // choose one side's columns to avoid ambiguity
+    .distinct();
 
 
 
