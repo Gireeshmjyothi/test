@@ -39,3 +39,14 @@ public void reconProcess(long startTime, long endTime) {
 
         logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
     }
+
+
+org.apache.spark.sql.AnalysisException: [AMBIGUOUS_REFERENCE] Reference `ID` is ambiguous, could be: [`tgt`.`ID`, `tgt`.`ID`].
+	at org.apache.spark.sql.errors.QueryCompilationErrors$.ambiguousReferenceError(QueryCompilationErrors.scala:1937)
+	at org.apache.spark.sql.catalyst.expressions.package$AttributeSeq.resolve(package.scala:377)
+	at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.resolveChildren(LogicalPlan.scala:146)
+	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$anonfun$resolveExpressionByPlanChildren$1(ColumnResolutionHelper.scala:364)
+	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$anonfun$resolveExpression$3(ColumnResolutionHelper.scala:157)
+	at org.apache.spark.sql.catalyst.analysis.package$.withPosition(package.scala:100)
+	at org.apache.spark.sql.catalyst.analysis.ColumnResolutionHelper.$anonfun$resolveExpression$1(ColumnResolutionHelper.scala:164)
+	at org.apache.spark.sql.catalyst.trees.CurrentOrigin$.withOrigin(origin.scala:76)
