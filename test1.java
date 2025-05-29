@@ -38,7 +38,7 @@ public class ReconService {
         Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime);
         logger.info("🚀 Fetch recon file details ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        // Load merchant order payments to check if data exists in reference
+        // Load merchant order payments
         logger.info("🚀 Fetch merchant order payments starts: {}", currentTimeMillis());
         localStartTime = currentTimeMillis();
         Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime).dropDuplicates("ATRN_NUM");
@@ -47,7 +47,7 @@ public class ReconService {
         // Rename reconFileDtls columns to match merchantOrderPayments
         reconFileDtls = renameColumns(reconFileDtls).alias("recon");
 
-        // Matched based on ATRN_NUM and DEBIT_AMT (and other mapped fields)
+        // Matched based on ATRN_NUM and DEBIT_AMT
         Column joinCond = reconFileDtls.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
                 .and(reconFileDtls.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
 
