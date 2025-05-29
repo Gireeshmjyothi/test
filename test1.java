@@ -27,76 +27,62 @@ public class ReconService {
     private final JdbcReaderService jdbcReaderService;
     private final SparkService sparkService;
 
-
     public void reconProcess(long startTime, long endTime) {
         logger.info("Recon process started.");
         long processStartTime = currentTimeMillis();
-        logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
+        logger.info("🚀 Recon process started at : {}", sparkService.formatMillis(processStartTime));
 
-        // Load datasets
-        logger.info("🚀 fetch merchant order payments starts : {} ", currentTimeMillis());
+        // Load recon file details
+        logger.info("🚀 Fetch recon file details starts: {}", currentTimeMillis());
         long localStartTime = currentTimeMillis();
-        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime).alias("src");
-        logger.info("🚀 fetch merchant order payments ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime);
+        logger.info("🚀 Fetch recon file details ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        logger.info("🚀 fetch recon file details starts : {}", currentTimeMillis());
+        // Load merchant order payments to check if data exists in reference
+        logger.info("🚀 Fetch merchant order payments starts: {}", currentTimeMillis());
         localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime).alias("tgt");
-        logger.info("🚀 fetch recon file details ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime).dropDuplicates("ATRN_NUM");
+        logger.info("🚀 Fetch merchant order payments ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        // Rename recon file columns to match source
-        reconFileDtls = renameColumns(reconFileDtls).alias("tgt");
+        // Rename reconFileDtls columns to match merchantOrderPayments
+        reconFileDtls = renameColumns(reconFileDtls).alias("recon");
 
-        // Deduplicate datasets
-        Dataset<Row> merchantDeduped = merchantOrderPayments.dropDuplicates().alias("src");
-
-        Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates("ATRN_NUM").alias("tgt");
-
-        // Join and match logic
-        Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"))
-                .and(merchantDeduped.col("DEBIT_AMT").equalTo(reconDeduped.col("DEBIT_AMT")));
+        // Matched based on ATRN_NUM and DEBIT_AMT (and other mapped fields)
+        Column joinCond = reconFileDtls.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
+                .and(reconFileDtls.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
 
         Column valueMatch = joinCond;
         for (String col : columnMapping().keySet()) {
-            valueMatch = valueMatch.and(merchantDeduped.col(col).equalTo(reconDeduped.col(col)));
+            valueMatch = valueMatch.and(reconFileDtls.col(col).equalTo(merchantOrderPayments.col(col)));
         }
 
-        logger.info("🚀 fetch matched data starts : {} ", currentTimeMillis());
+        // Matched rows
+        logger.info("🚀 Fetch matched data starts: {}", currentTimeMillis());
         localStartTime = currentTimeMillis();
-        Dataset<Row> matched = merchantDeduped.join(reconDeduped, valueMatch, "inner").select("src.*").dropDuplicates("ATRN_NUM");
-        logger.info("🚀 fetch matched data ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> matched = reconFileDtls.join(merchantOrderPayments, valueMatch, "inner").select("recon.*").dropDuplicates("ATRN_NUM");
+        logger.info("🚀 Fetch matched data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        logger.info("🚀 fetch unmatched data starts : {} ", sparkService.formatMillis(currentTimeMillis()));
+        // Unmatched rows from reconFileDtls not in merchantOrderPayments
+        logger.info("🚀 Fetch unmatched data starts: {}", sparkService.formatMillis(currentTimeMillis()));
         localStartTime = currentTimeMillis();
-        Dataset<Row> unmatched = merchantDeduped.join(reconDeduped, joinCond, "left_anti").distinct();
-        logger.info("🚀 fetch unmatched data ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> unmatched = reconFileDtls.join(merchantOrderPayments, joinCond, "left_anti").distinct();
+        logger.info("🚀 Fetch unmatched data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        // Duplicates
-        Dataset<Row> tgt1 = reconFileDtls.alias("tgt1");
-        Dataset<Row> tgt2 = getDuplicates(reconFileDtls, "ATRN_NUM").alias("tgt2");
-
-        logger.info("🚀 fetch duplicate data starts : {} ", sparkService.formatMillis(currentTimeMillis()));
+        // Duplicates in reconFileDtls
+        logger.info("🚀 Fetch duplicate data starts: {}", sparkService.formatMillis(currentTimeMillis()));
         localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDetailDuplicate = tgt2
-                .join(tgt1, tgt2.col("ATRN_NUM").equalTo(tgt1.col("ATRN_NUM")))
-                .select("tgt1.*");
-        logger.info("🚀 fetch duplicate data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> reconFileDetailDuplicate = getDuplicates(reconFileDtls, "ATRN_NUM");
+        logger.info("🚀 Fetch duplicate data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
         // Save results
-        logger.info("🚀 insert process data starts : {} ", sparkService.formatMillis(currentTimeMillis()));
+        logger.info("🚀 Insert process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
         localStartTime = currentTimeMillis();
         saveToReconciliationTable(matched, "MATCHED", "matched");
         saveToReconciliationTable(unmatched, "UNMATCHED", "atrn not matched");
         saveToReconciliationTable(reconFileDetailDuplicate, "TARGET_DUPLICATE", "duplicate atrn in recon file details");
-        logger.info("🚀 insert process data ends : {} ", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        logger.info("🚀 Insert process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
         logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
-    }
-
-    private Dataset<Row> getDuplicates(Dataset<Row> dataset, String... keyCols) {
-        Column[] groupCols = Arrays.stream(keyCols).map(functions::col).toArray(Column[]::new);
-        Dataset<Row> duplicates = dataset.groupBy(groupCols).count().filter("count > 1");
-        return duplicates.join(dataset, JavaConverters.asScalaBufferConverter(Arrays.asList(keyCols)).asScala().toSeq(), "inner");
     }
 
     private Dataset<Row> readAndNormalize(String tableName, String dateColumn, long startTime, long endTime) {
@@ -136,9 +122,17 @@ public class ReconService {
         columnMappings.put("ATRN_NUM", "ATRN_NUM");
         return columnMappings;
     }
+
+    private Dataset<Row> getDuplicates(Dataset<Row> dataset, String... keyCols) {
+        Column[] groupCols = Arrays.stream(keyCols).map(functions::col).toArray(Column[]::new);
+        Dataset<Row> duplicates = dataset.groupBy(groupCols).count().filter("count > 1");
+        return duplicates.join(dataset, JavaConverters.asScalaBufferConverter(Arrays.asList(keyCols)).asScala().toSeq(), "inner");
+    }
+
     private void saveToReconciliationTable(Dataset<Row> dataset, String matchStatus, String reason) {
         Date currentTimeStamp = Date.valueOf(LocalDateTime.now().toLocalDate());
         Timestamp batchTime = Timestamp.valueOf(LocalDateTime.now());
+
         Dataset<Row> resultDataset = dataset
                 .withColumn("match_status", lit(matchStatus))
                 .withColumn("mismatch_reason", lit(reason))
@@ -147,7 +141,7 @@ public class ReconService {
                 .withColumn("reconciled_at", lit(currentTimeStamp))
                 .withColumn("batch_date", lit(batchTime))
                 .repartition(4);
+
         jdbcReaderService.writeToReconFileResult(resultDataset, "RECONCILIATION_RESULT");
     }
-
 }
