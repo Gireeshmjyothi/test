@@ -1,3 +1,50 @@
+Certainly! Let's address your queries step by step. 
+
+
+---
+
+🔍 Difference Between DELETE and TRUNCATE in SQL
+
+Feature	DELETE	TRUNCATE
+
+Command Type	DML (Data Manipulation Language)	DDL (Data Definition Language)
+Operation Scope	Removes specific rows based on WHERE clause	Removes all rows from a table
+WHERE Clause	Supported	Not supported
+Triggers	Fires triggers	Does not fire triggers
+Transaction Log	Logs each deleted row	Logs deallocation of data pages
+Rollback Support	Can be rolled back	Cannot be rolled back in some databases (e.g., Oracle)
+Identity Reset	Does not reset identity columns	Resets identity columns
+Performance	Slower for large datasets	Faster for large datasets
+Locking	Row-level locking	Table-level locking
+
+
+In summary, use DELETE when you need to remove specific rows and possibly recover them later. Use TRUNCATE when you want to quickly remove all rows from a table without the need for recovery. 
+
+
+---
+
+🗃️ Where Is Deleted Data Stored?
+
+When you execute a DELETE statement in SQL Server, the deleted data is recorded in the transaction log. This log captures all changes made to the database and can be used to recover data if necessary. 
+
+To recover deleted data: 
+
+1. Transaction Log Backup: If your database is in Full Recovery Model and you have transaction log backups, you can restore the database to a point in time before the deletion. 
+
+
+2. Third-Party Tools: There are tools available that can read transaction logs and help recover deleted data. 
+
+
+
+It's important to note that TRUNCATE operations are minimally logged, and recovering data after a TRUNCATE can be more challenging or impossible without a full database backup. 
+
+
+---
+
+🛠️ Revised Java Code for ReconService
+
+Based on your requirement to compare RECON_FILE_DTLS against MERCHANT_ORDER_PAYMENTS without using data from MERCHANT_ORDER_PAYMENTS directly, here's the revised ReconService class: 
+
 package com.epay.rns.service;
 
 import com.sbi.epay.logging.utility.LoggerFactoryUtility;
@@ -145,3 +192,8 @@ public class ReconService {
         jdbcReaderService.writeToReconFileResult(resultDataset, "RECONCILIATION_RESULT");
     }
 }
+
+
+
+This revised code ensures that RECON_FILE_DTLS is compared against MERCHANT_ORDER_PAYMENTS to identify matched, unmatched, and duplicate records, without directly using data from MERCHANT_ORDER_PAYMENTS in the final output.
+
