@@ -1,4 +1,34 @@
-public void reconProcess(long startTime, long endTime) {
+package com.epay.rns.service;
+
+import com.sbi.epay.logging.utility.LoggerFactoryUtility;
+import com.sbi.epay.logging.utility.LoggerUtility;
+import lombok.RequiredArgsConstructor;
+import org.apache.spark.sql.Column;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.functions;
+import org.springframework.stereotype.Service;
+import scala.collection.JavaConverters;
+
+import java.sql.Date;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.lang.System.currentTimeMillis;
+import static org.apache.spark.sql.functions.lit;
+
+@Service
+@RequiredArgsConstructor
+public class ReconService {
+    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+    private final JdbcReaderService jdbcReaderService;
+    private final SparkService sparkService;
+
+
+    public void reconProcess(long startTime, long endTime) {
         logger.info("Recon process started.");
         long processStartTime = currentTimeMillis();
         logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
@@ -20,7 +50,7 @@ public void reconProcess(long startTime, long endTime) {
         // Deduplicate datasets
         Dataset<Row> merchantDeduped = merchantOrderPayments.dropDuplicates().alias("src");
 
-        Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates().alias("tgt");
+        Dataset<Row> reconDeduped = reconFileDtls.dropDuplicates("ATRN_NUM").alias("tgt");
 
         // Join and match logic
         Column joinCond = merchantDeduped.col("ATRN_NUM").equalTo(reconDeduped.col("ATRN_NUM"))
@@ -62,3 +92,62 @@ public void reconProcess(long startTime, long endTime) {
 
         logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
     }
+
+    private Dataset<Row> getDuplicates(Dataset<Row> dataset, String... keyCols) {
+        Column[] groupCols = Arrays.stream(keyCols).map(functions::col).toArray(Column[]::new);
+        Dataset<Row> duplicates = dataset.groupBy(groupCols).count().filter("count > 1");
+        return duplicates.join(dataset, JavaConverters.asScalaBufferConverter(Arrays.asList(keyCols)).asScala().toSeq(), "inner");
+    }
+
+    private Dataset<Row> readAndNormalize(String tableName, String dateColumn, long startTime, long endTime) {
+        String query = buildQuery(tableName, dateColumn, startTime, endTime);
+        logger.info("Executing query for table '{}': {}", tableName, query);
+        return normalize(jdbcReaderService.readFromDBWithFilter(tableName));
+    }
+
+    private String buildQuery(String tableName, String dateColumn, long startTime, long endTime) {
+        return String.format("(SELECT * FROM %s WHERE %s BETWEEN %d AND %d) filtered_data", tableName, dateColumn, startTime, endTime);
+    }
+
+    private Dataset<Row> normalize(Dataset<Row> dataset) {
+        for (String col : columnMapping().keySet()) {
+            if (Arrays.asList(dataset.columns()).contains(col)) {
+                dataset = dataset.withColumn(col, functions.upper(functions.trim(dataset.col(col))));
+            }
+        }
+        if (Arrays.asList(dataset.columns()).contains("ATRN_NUM")) {
+            dataset = dataset.withColumn("ATRN_NUM", functions.upper(functions.trim(dataset.col("ATRN_NUM"))));
+        }
+        return dataset;
+    }
+
+    private Dataset<Row> renameColumns(Dataset<Row> dataset) {
+        for (Map.Entry<String, String> entry : columnMapping().entrySet()) {
+            if (Arrays.asList(dataset.columns()).contains(entry.getValue())) {
+                dataset = dataset.withColumnRenamed(entry.getValue(), entry.getKey());
+            }
+        }
+        return dataset;
+    }
+
+    private Map<String, String> columnMapping() {
+        Map<String, String> columnMappings = new HashMap<>();
+        columnMappings.put("DEBIT_AMT", "PAYMENT_AMOUNT");
+        columnMappings.put("ATRN_NUM", "ATRN_NUM");
+        return columnMappings;
+    }
+    private void saveToReconciliationTable(Dataset<Row> dataset, String matchStatus, String reason) {
+        Date currentTimeStamp = Date.valueOf(LocalDateTime.now().toLocalDate());
+        Timestamp batchTime = Timestamp.valueOf(LocalDateTime.now());
+        Dataset<Row> resultDataset = dataset
+                .withColumn("match_status", lit(matchStatus))
+                .withColumn("mismatch_reason", lit(reason))
+                .withColumn("source_json", functions.to_json(functions.struct(Arrays.stream(dataset.columns()).map(functions::col).toArray(Column[]::new))))
+                .withColumn("recon_json", functions.to_json(functions.struct(Arrays.stream(dataset.columns()).map(functions::col).toArray(Column[]::new))))
+                .withColumn("reconciled_at", lit(currentTimeStamp))
+                .withColumn("batch_date", lit(batchTime))
+                .repartition(4);
+        jdbcReaderService.writeToReconFileResult(resultDataset, "RECONCILIATION_RESULT");
+    }
+
+}
