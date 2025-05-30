@@ -197,3 +197,43 @@ public class ReconService {
 
 This revised code ensures that RECON_FILE_DTLS is compared against MERCHANT_ORDER_PAYMENTS to identify matched, unmatched, and duplicate records, without directly using data from MERCHANT_ORDER_PAYMENTS in the final output.
 
+
+    logger.info("🚀 Insert process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
+localStartTime = currentTimeMillis();
+
+// Save into reconciliation result table
+saveToReconciliationTable(matched, "MATCHED", "matched");
+saveToReconciliationTable(unmatched, "UNMATCHED", "atrn not matched");
+saveToReconciliationTable(reconFileDetailDuplicate, "TARGET_DUPLICATE", "duplicate atrn in recon file details");
+
+// Update match_status back in RECON_FILE_DTLS
+updateReconFileDtls(matched, "MATCHED");
+updateReconFileDtls(unmatched, "UNMATCHED");
+updateReconFileDtls(reconFileDetailDuplicate, "TARGET_DUPLICATE");
+
+logger.info("🚀 Insert process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+
+private void updateReconFileDtls(Dataset<Row> dataset, String status) {
+    Dataset<Row> updated = dataset.select("ATRN_NUM")
+            .withColumn("match_status", lit(status))
+            .withColumn("match_updated_at", current_timestamp());
+
+    jdbcReaderService.updateReconFileDtls(updated, "RECON_FILE_DTLS", "ATRN_NUM");
+}
+
+public void updateReconFileDtls(Dataset<Row> updateDataset, String tableName, String keyColumn) {
+    updateDataset.createOrReplaceTempView("updates");
+
+    String updateSQL = String.format(
+        "MERGE INTO %s target " +
+        "USING updates source " +
+        "ON target.%s = source.%s " +
+        "WHEN MATCHED THEN UPDATE SET " +
+        "target.match_status = source.match_status, " +
+        "target.match_updated_at = source.match_updated_at",
+        tableName, keyColumn, keyColumn
+    );
+
+    updateDataset.sparkSession().sql(updateSQL);
+}
+
