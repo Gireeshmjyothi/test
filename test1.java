@@ -1,30 +1,33 @@
-// JdbcReaderService.java
-
-public void updateReconFileDetails(Dataset<Row> updateDataset, String tableName, String keyColumn) {
-    updateDataset.foreachPartition(iterator -> {
-        try (Connection connection = DriverManager.getConnection("jdbc:your-db-url", "username", "password")) {
-            connection.setAutoCommit(false);
-            String sql = "UPDATE " + tableName + " SET RECON_STATUS = ? WHERE " + keyColumn + " = ?";
-            try (PreparedStatement statement = connection.prepareStatement(sql)) {
-                while (iterator.hasNext()) {
-                    Row row = iterator.next();
-                    statement.setString(1, row.getAs("RECON_STATUS"));
-                    statement.setString(2, row.getAs(keyColumn));
-                    statement.addBatch();
-                }
-                statement.executeBatch();
-                connection.commit();
-            } catch (Exception e) {
-                connection.rollback();
-                throw e;
-            }
-        }
-    });
+public void writeToStageTable(Dataset<Row> updatedData, String stageTableName) {
+    updatedData.write()
+        .mode(SaveMode.Overwrite)
+        .format("jdbc")
+        .option("url", "jdbc:your-db-url")
+        .option("dbtable", stageTableName)
+        .option("user", "your-username")
+        .option("password", "your-password")
+        .save();
 }
 
+public void mergeStageToMain(String stageTableName, String targetTableName, String keyColumn) {
+    String mergeSql = String.format(
+        "MERGE INTO %s T " +
+        "USING %s S " +
+        "ON T.%s = S.%s " +
+        "WHEN MATCHED THEN UPDATE SET T.RECON_STATUS = S.RECON_STATUS",
+        targetTableName, stageTableName, keyColumn, keyColumn
+    );
 
+    try (Connection connection = DriverManager.getConnection("jdbc:your-db-url", "your-username", "your-password");
+         Statement stmt = connection.createStatement()) {
+        stmt.execute(mergeSql);
+    }
+}
 private void updateReconFileDetails(Dataset<Row> dataset, String status) {
     Dataset<Row> updated = dataset.select("recon.ATRN_NUM")
-            .withColumn("RECON_STATUS", functions.lit(status));
-    jdbcReaderService.updateReconFileDetails(updated, "RECON_FILE_DTLS", "ATRN_NUM");
+                                  .withColumn("RECON_STATUS", functions.lit(status));
+
+    String stageTableName = "RECON_FILE_DTLS_STAGE";
+    jdbcReaderService.writeToStageTable(updated, stageTableName);
+    jdbcReaderService.mergeStageToMain(stageTableName, "RECON_FILE_DTLS", "ATRN_NUM");
 }
