@@ -1,50 +1,3 @@
-Certainly! Let's address your queries step by step. 
-
-
----
-
-🔍 Difference Between DELETE and TRUNCATE in SQL
-
-Feature	DELETE	TRUNCATE
-
-Command Type	DML (Data Manipulation Language)	DDL (Data Definition Language)
-Operation Scope	Removes specific rows based on WHERE clause	Removes all rows from a table
-WHERE Clause	Supported	Not supported
-Triggers	Fires triggers	Does not fire triggers
-Transaction Log	Logs each deleted row	Logs deallocation of data pages
-Rollback Support	Can be rolled back	Cannot be rolled back in some databases (e.g., Oracle)
-Identity Reset	Does not reset identity columns	Resets identity columns
-Performance	Slower for large datasets	Faster for large datasets
-Locking	Row-level locking	Table-level locking
-
-
-In summary, use DELETE when you need to remove specific rows and possibly recover them later. Use TRUNCATE when you want to quickly remove all rows from a table without the need for recovery. 
-
-
----
-
-🗃️ Where Is Deleted Data Stored?
-
-When you execute a DELETE statement in SQL Server, the deleted data is recorded in the transaction log. This log captures all changes made to the database and can be used to recover data if necessary. 
-
-To recover deleted data: 
-
-1. Transaction Log Backup: If your database is in Full Recovery Model and you have transaction log backups, you can restore the database to a point in time before the deletion. 
-
-
-2. Third-Party Tools: There are tools available that can read transaction logs and help recover deleted data. 
-
-
-
-It's important to note that TRUNCATE operations are minimally logged, and recovering data after a TRUNCATE can be more challenging or impossible without a full database backup. 
-
-
----
-
-🛠️ Revised Java Code for ReconService
-
-Based on your requirement to compare RECON_FILE_DTLS against MERCHANT_ORDER_PAYMENTS without using data from MERCHANT_ORDER_PAYMENTS directly, here's the revised ReconService class: 
-
 package com.epay.rns.service;
 
 import com.sbi.epay.logging.utility.LoggerFactoryUtility;
@@ -77,24 +30,23 @@ public class ReconService {
     public void reconProcess(long startTime, long endTime) {
         logger.info("Recon process started.");
         long processStartTime = currentTimeMillis();
-        logger.info("🚀 Recon process started at : {}", sparkService.formatMillis(processStartTime));
+        logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
 
-        // Load recon file details
-        logger.info("🚀 Fetch recon file details starts: {}", currentTimeMillis());
+        // Load datasets
+        logger.info("🚀 fetch merchant order payments starts : {} ", currentTimeMillis());
         long localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime);
-        logger.info("🚀 Fetch recon file details ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime).alias("src");
+        logger.info("🚀 fetch merchant order payments ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        // Load merchant order payments
-        logger.info("🚀 Fetch merchant order payments starts: {}", currentTimeMillis());
+        logger.info("🚀 fetch recon file details starts : {}", currentTimeMillis());
         localStartTime = currentTimeMillis();
-        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", startTime, endTime).dropDuplicates("ATRN_NUM");
-        logger.info("🚀 Fetch merchant order payments ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", startTime, endTime).alias("tgt");
+        logger.info("🚀 fetch recon file details ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        // Rename reconFileDtls columns to match merchantOrderPayments
+        // Rename recon file columns to match source
         reconFileDtls = renameColumns(reconFileDtls).alias("recon");
 
-        // Matched based on ATRN_NUM and DEBIT_AMT
+        // Join and match logic
         Column joinCond = reconFileDtls.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
                 .and(reconFileDtls.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
 
@@ -129,7 +81,21 @@ public class ReconService {
         saveToReconciliationTable(reconFileDetailDuplicate, "TARGET_DUPLICATE", "duplicate atrn in recon file details");
         logger.info("🚀 Insert process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
+        // Update match_status back in RECON_FILE_DTLS
+    /*    logger.info("🚀 Update process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
+        localStartTime = currentTimeMillis();
+        updateReconFileDetails(matched, "MATCHED");
+        updateReconFileDetails(unmatched, "UNMATCHED");
+        updateReconFileDetails(reconFileDetailDuplicate, "TARGET_DUPLICATE");
+        logger.info("🚀 Update process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));*/
+
         logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
+    }
+
+    private Dataset<Row> getDuplicates(Dataset<Row> dataset, String... keyCols) {
+        Column[] groupCols = Arrays.stream(keyCols).map(functions::col).toArray(Column[]::new);
+        Dataset<Row> duplicates = dataset.groupBy(groupCols).count().filter("count > 1");
+        return duplicates.join(dataset, JavaConverters.asScalaBufferConverter(Arrays.asList(keyCols)).asScala().toSeq(), "inner");
     }
 
     private Dataset<Row> readAndNormalize(String tableName, String dateColumn, long startTime, long endTime) {
@@ -167,19 +133,14 @@ public class ReconService {
         Map<String, String> columnMappings = new HashMap<>();
         columnMappings.put("DEBIT_AMT", "PAYMENT_AMOUNT");
         columnMappings.put("ATRN_NUM", "ATRN_NUM");
-        return columnMappings;
-    }
+        columnMappings.put("PAYMENT_STATUS", "STATUS");
 
-    private Dataset<Row> getDuplicates(Dataset<Row> dataset, String... keyCols) {
-        Column[] groupCols = Arrays.stream(keyCols).map(functions::col).toArray(Column[]::new);
-        Dataset<Row> duplicates = dataset.groupBy(groupCols).count().filter("count > 1");
-        return duplicates.join(dataset, JavaConverters.asScalaBufferConverter(Arrays.asList(keyCols)).asScala().toSeq(), "inner");
+        return columnMappings;
     }
 
     private void saveToReconciliationTable(Dataset<Row> dataset, String matchStatus, String reason) {
         Date currentTimeStamp = Date.valueOf(LocalDateTime.now().toLocalDate());
         Timestamp batchTime = Timestamp.valueOf(LocalDateTime.now());
-
         Dataset<Row> resultDataset = dataset
                 .withColumn("match_status", lit(matchStatus))
                 .withColumn("mismatch_reason", lit(reason))
@@ -188,52 +149,13 @@ public class ReconService {
                 .withColumn("reconciled_at", lit(currentTimeStamp))
                 .withColumn("batch_date", lit(batchTime))
                 .repartition(4);
-
         jdbcReaderService.writeToReconFileResult(resultDataset, "RECONCILIATION_RESULT");
     }
+
+    private void updateReconFileDetails(Dataset<Row> dataset, String status) {
+        Dataset<Row> updated = dataset.select("ATRN_NUM")
+                .withColumn("RECON_STATUS", lit(status));
+
+        jdbcReaderService.updateReconFileDetails(updated, "RECON_FILE_DTLS", "ATRN_NUM");
+    }
 }
-
-
-
-This revised code ensures that RECON_FILE_DTLS is compared against MERCHANT_ORDER_PAYMENTS to identify matched, unmatched, and duplicate records, without directly using data from MERCHANT_ORDER_PAYMENTS in the final output.
-
-
-    logger.info("🚀 Insert process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-localStartTime = currentTimeMillis();
-
-// Save into reconciliation result table
-saveToReconciliationTable(matched, "MATCHED", "matched");
-saveToReconciliationTable(unmatched, "UNMATCHED", "atrn not matched");
-saveToReconciliationTable(reconFileDetailDuplicate, "TARGET_DUPLICATE", "duplicate atrn in recon file details");
-
-// Update match_status back in RECON_FILE_DTLS
-updateReconFileDtls(matched, "MATCHED");
-updateReconFileDtls(unmatched, "UNMATCHED");
-updateReconFileDtls(reconFileDetailDuplicate, "TARGET_DUPLICATE");
-
-logger.info("🚀 Insert process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-private void updateReconFileDtls(Dataset<Row> dataset, String status) {
-    Dataset<Row> updated = dataset.select("ATRN_NUM")
-            .withColumn("match_status", lit(status))
-            .withColumn("match_updated_at", current_timestamp());
-
-    jdbcReaderService.updateReconFileDtls(updated, "RECON_FILE_DTLS", "ATRN_NUM");
-}
-
-public void updateReconFileDtls(Dataset<Row> updateDataset, String tableName, String keyColumn) {
-    updateDataset.createOrReplaceTempView("updates");
-
-    String updateSQL = String.format(
-        "MERGE INTO %s target " +
-        "USING updates source " +
-        "ON target.%s = source.%s " +
-        "WHEN MATCHED THEN UPDATE SET " +
-        "target.match_status = source.match_status, " +
-        "target.match_updated_at = source.match_updated_at",
-        tableName, keyColumn, keyColumn
-    );
-
-    updateDataset.sparkSession().sql(updateSQL);
-}
-
