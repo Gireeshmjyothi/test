@@ -1,30 +1,23 @@
-public class ReconProcessor {
+Caused by: Error : 933, Position : 59, SQL = UPDATE RECON_FILE_DTLS r SET RECON_STATUS = s.RECON_STATUS FROM RECON_FILE_DTLS_STAGE s WHERE r.RFD_ID = s.RFD_ID, Original SQL = UPDATE RECON_FILE_DTLS r SET RECON_STATUS = s.RECON_STATUS FROM RECON_FILE_DTLS_STAGE s WHERE r.RFD_ID = s.RFD_ID, Error Message = ORA-00933: SQL command not properly ended
 
-    private static final String JDBC_URL = "jdbc:postgresql://<host>:<port>/<db>";
-    private static final String JDBC_USER = "<username>";
-    private static final String JDBC_PASS = "<password>";
-    private static final String JDBC_DRIVER = "org.postgresql.Driver";
+	at oracle.jdbc.driver.T4CTTIoer11.processError(T4CTTIoer11.java:717)
 
-    private final SparkSession spark;
 
-    public ReconProcessor(SparkSession spark) {
-        this.spark = spark;
-    }
 
-    // Method to write rfdId + status to staging table
+// Method to write rfdId + status to staging table
     public void stageReconStatus(Dataset<Row> dataset, String status) {
         Dataset<Row> staged = dataset
-                .selectExpr("rfdId", "'" + status + "' as reconStatus")
-                .dropDuplicates("rfdId");
+                .selectExpr("RFD_ID", "'" + status + "' as RECON_STATUS")
+                .dropDuplicates("RFD_ID");
 
         staged.write()
                 .mode(SaveMode.Append)
                 .format("jdbc")
-                .option("url", JDBC_URL)
-                .option("dbtable", "recon_status_stage")
-                .option("user", JDBC_USER)
-                .option("password", JDBC_PASS)
-                .option("driver", JDBC_DRIVER)
+                .option("url", jdbcUrl)
+                .option("dbtable", "RECON_FILE_DTLS_STAGE")
+                .option("user", jdbcUserName)
+                .option("password", jdbcPassword)
+                .option("driver", jdbcDriver)
                 .save();
     }
 
@@ -32,25 +25,24 @@ public class ReconProcessor {
     public void updateReconFromStage() {
         String updateSql =
                 "UPDATE RECON_FILE_DTLS r " +
-                "SET match_status = s.reconStatus " +
-                "FROM recon_status_stage s " +
-                "WHERE r.rfdId = s.rfdId";
+                        "SET RECON_STATUS = s.RECON_STATUS " +
+                        "FROM RECON_FILE_DTLS_STAGE s " +
+                        "WHERE r.RFD_ID = s.RFD_ID";
 
-        try (Connection conn = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASS);
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, jdbcUserName, jdbcPassword);
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate(updateSql);
         } catch (SQLException e) {
-            e.printStackTrace(); // Preferably use proper logging
+            e.printStackTrace();
         }
     }
 
     // Optional cleanup
     public void clearStageTable() {
-        try (Connection conn = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASS);
+        try (Connection conn = DriverManager.getConnection(jdbcUrl, jdbcUserName, jdbcPassword);
              Statement stmt = conn.createStatement()) {
             stmt.execute("TRUNCATE TABLE recon_status_stage");
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
-}
