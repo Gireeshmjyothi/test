@@ -1,33 +1,56 @@
-public void writeToStageTable(Dataset<Row> updatedData, String stageTableName) {
-    updatedData.write()
-        .mode(SaveMode.Overwrite)
-        .format("jdbc")
-        .option("url", "jdbc:your-db-url")
-        .option("dbtable", stageTableName)
-        .option("user", "your-username")
-        .option("password", "your-password")
-        .save();
-}
+public class ReconProcessor {
 
-public void mergeStageToMain(String stageTableName, String targetTableName, String keyColumn) {
-    String mergeSql = String.format(
-        "MERGE INTO %s T " +
-        "USING %s S " +
-        "ON T.%s = S.%s " +
-        "WHEN MATCHED THEN UPDATE SET T.RECON_STATUS = S.RECON_STATUS",
-        targetTableName, stageTableName, keyColumn, keyColumn
-    );
+    private static final String JDBC_URL = "jdbc:postgresql://<host>:<port>/<db>";
+    private static final String JDBC_USER = "<username>";
+    private static final String JDBC_PASS = "<password>";
+    private static final String JDBC_DRIVER = "org.postgresql.Driver";
 
-    try (Connection connection = DriverManager.getConnection("jdbc:your-db-url", "your-username", "your-password");
-         Statement stmt = connection.createStatement()) {
-        stmt.execute(mergeSql);
+    private final SparkSession spark;
+
+    public ReconProcessor(SparkSession spark) {
+        this.spark = spark;
     }
-}
-private void updateReconFileDetails(Dataset<Row> dataset, String status) {
-    Dataset<Row> updated = dataset.select("recon.ATRN_NUM")
-                                  .withColumn("RECON_STATUS", functions.lit(status));
 
-    String stageTableName = "RECON_FILE_DTLS_STAGE";
-    jdbcReaderService.writeToStageTable(updated, stageTableName);
-    jdbcReaderService.mergeStageToMain(stageTableName, "RECON_FILE_DTLS", "ATRN_NUM");
+    // Method to write rfdId + status to staging table
+    public void stageReconStatus(Dataset<Row> dataset, String status) {
+        Dataset<Row> staged = dataset
+                .selectExpr("rfdId", "'" + status + "' as reconStatus")
+                .dropDuplicates("rfdId");
+
+        staged.write()
+                .mode(SaveMode.Append)
+                .format("jdbc")
+                .option("url", JDBC_URL)
+                .option("dbtable", "recon_status_stage")
+                .option("user", JDBC_USER)
+                .option("password", JDBC_PASS)
+                .option("driver", JDBC_DRIVER)
+                .save();
+    }
+
+    // Method to bulk update RECON_FILE_DTLS from staging
+    public void updateReconFromStage() {
+        String updateSql =
+                "UPDATE RECON_FILE_DTLS r " +
+                "SET match_status = s.reconStatus " +
+                "FROM recon_status_stage s " +
+                "WHERE r.rfdId = s.rfdId";
+
+        try (Connection conn = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASS);
+             Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(updateSql);
+        } catch (SQLException e) {
+            e.printStackTrace(); // Preferably use proper logging
+        }
+    }
+
+    // Optional cleanup
+    public void clearStageTable() {
+        try (Connection conn = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASS);
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("TRUNCATE TABLE recon_status_stage");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 }
