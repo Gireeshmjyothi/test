@@ -1,20 +1,97 @@
-Execution failed for task ':compileJava'.
-> Could not resolve all files for configuration ':compileClasspath'.
-   > Could not resolve jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:6.0.0.
-     Required by:
-         project :
-      > Could not resolve jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:6.0.0.
-         > Could not get resource 'https://gitlab.epay.sbi/api/v4/projects/48/packages/maven/jakarta/servlet/jsp/jstl/jakarta.servlet.jsp.jstl-api/6.0.0/jakarta.servlet.jsp.jstl-api-6.0.0.pom'.
-            > Could not GET 'https://gitlab.epay.sbi/api/v4/projects/48/packages/maven/jakarta/servlet/jsp/jstl/jakarta.servlet.jsp.jstl-api/6.0.0/jakarta.servlet.jsp.jstl-api-6.0.0.pom'. Received status code 401 from server: Unauthorized
-      > Could not resolve jakarta.servlet.jsp.jstl:jakarta.servlet.jsp.jstl-api:6.0.0.
-         > Could not get resource 'https://repo.maven.apache.org/maven2/jakarta/servlet/jsp/jstl/jakarta.servlet.jsp.jstl-api/6.0.0/jakarta.servlet.jsp.jstl-api-6.0.0.pom'.
-            > Could not GET 'https://repo.maven.apache.org/maven2/jakarta/servlet/jsp/jstl/jakarta.servlet.jsp.jstl-api/6.0.0/jakarta.servlet.jsp.jstl-api-6.0.0.pom'. Received status code 407 from server: Proxy Authentication Required
-   > Could not resolve org.glassfish.web:jakarta.servlet.jsp.jstl:6.0.0.
-     Required by:
-         project :
-      > Could not resolve org.glassfish.web:jakarta.servlet.jsp.jstl:6.0.0.
-         > Could not get resource 'https://gitlab.epay.sbi/api/v4/projects/48/packages/maven/org/glassfish/web/jakarta.servlet.jsp.jstl/6.0.0/jakarta.servlet.jsp.jstl-6.0.0.pom'.
-            > Could not GET 'https://gitlab.epay.sbi/api/v4/projects/48/packages/maven/org/glassfish/web/jakarta.servlet.jsp.jstl/6.0.0/jakarta.servlet.jsp.jstl-6.0.0.pom'. Received status code 401 from server: Unauthorized
-      > Could not resolve org.glassfish.web:jakarta.servlet.jsp.jstl:6.0.0.
-         > Could not get resource 'https://repo.maven.apache.org/maven2/org/glassfish/web/jakarta.servlet.jsp.jstl/6.0.0/jakarta.servlet.jsp.jstl-6.0.0.pom'.
-            > Could not GET 'https://repo.maven.apache.org/maven2/org/glassfish/web/jakarta.servlet.jsp.jstl/6.0.0/jakarta.servlet.jsp.jstl-6.0.0.pom'. Received status code 407 from server: Proxy Authentication Required
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-06-09 16:38:48.561 ERROR | com.epay.rns.config.aws.S3Config$$SpringCGLIB$$0:859 | principal=  | scenario= | operation= | correlation= | reportFailure | Application run failed
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'sparkController' defined in file [F:\Epay\epay_recon_settlement_service\build\classes\java\main\com\epay\rns\controller\SparkController.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'sparkService' defined in file [F:\Epay\epay_recon_settlement_service\build\classes\java\main\com\epay\rns\service\SparkService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'sparkSession' defined in class path resource [com/epay/rns/config/SparkConfig.class]: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:795)
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1375)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1212)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:975)
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:971)
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:625)
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:754)
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:456)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:335)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1363)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1352)
+	at com.epay.rns.ReconSettlementServiceApplication.main(ReconSettlementServiceApplication.java:28)
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'sparkService' defined in file [F:\Epay\epay_recon_settlement_service\build\classes\java\main\com\epay\rns\service\SparkService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'sparkSession' defined in class path resource [com/epay/rns/config/SparkConfig.class]: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:795)
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1375)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1212)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358)
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904)
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782)
+	... 19 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'sparkSession' defined in class path resource [com/epay/rns/config/SparkConfig.class]: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:648)
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:485)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1355)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1185)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358)
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904)
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782)
+	... 33 common frames omitted
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:178)
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:644)
+	... 47 common frames omitted
+Caused by: java.lang.NoClassDefFoundError: jakarta/servlet/SingleThreadModel
+	at org.sparkproject.jetty.servlet.ServletHolder.setServlet(ServletHolder.java:173)
+	at org.sparkproject.jetty.servlet.ServletHolder.<init>(ServletHolder.java:120)
+	at org.apache.spark.ui.JettyUtils$.createServletHandler(JettyUtils.scala:121)
+	at org.apache.spark.ui.JettyUtils$.createServletHandler(JettyUtils.scala:107)
+	at org.apache.spark.metrics.sink.MetricsServlet.getHandlers(MetricsServlet.scala:50)
+	at org.apache.spark.metrics.MetricsSystem.$anonfun$getServletHandlers$2(MetricsSystem.scala:91)
+	at scala.Option.map(Option.scala:242)
+	at org.apache.spark.metrics.MetricsSystem.getServletHandlers(MetricsSystem.scala:91)
+	at org.apache.spark.SparkContext.<init>(SparkContext.scala:694)
+	at org.apache.spark.SparkContext$.getOrCreate(SparkContext.scala:3055)
+	at org.apache.spark.sql.classic.SparkSession$Builder.$anonfun$build$2(SparkSession.scala:839)
+	at scala.Option.getOrElse(Option.scala:201)
+	at org.apache.spark.sql.classic.SparkSession$Builder.build(SparkSession.scala:830)
+	at org.apache.spark.sql.classic.SparkSession$Builder.getOrCreate(SparkSession.scala:859)
+	at org.apache.spark.sql.classic.SparkSession$Builder.getOrCreate(SparkSession.scala:732)
+	at org.apache.spark.sql.SparkSession$Builder.getOrCreate(SparkSession.scala:923)
+	at com.epay.rns.config.SparkConfig.sparkSession(SparkConfig.java:30)
+	at com.epay.rns.config.SparkConfig$$SpringCGLIB$$0.CGLIB$sparkSession$2(<generated>)
+	at com.epay.rns.config.SparkConfig$$SpringCGLIB$$FastClass$$1.invoke(<generated>)
+	at org.springframework.cglib.proxy.MethodProxy.invokeSuper(MethodProxy.java:258)
+	at org.springframework.context.annotation.ConfigurationClassEnhancer$BeanMethodInterceptor.intercept(ConfigurationClassEnhancer.java:370)
+	at com.epay.rns.config.SparkConfig$$SpringCGLIB$$0.sparkSession(<generated>)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:146)
+	... 48 common frames omitted
+Caused by: java.lang.ClassNotFoundException: jakarta.servlet.SingleThreadModel
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
+	... 73 common frames omitted
+Disconnected from the target VM, address: 'localhost:51909', transport: 'socket'
+
+> Task :com.epay.rns.ReconSettlementServiceApplication.main() FAILED
+5 actionable tasks: 4 executed, 1 from cache
