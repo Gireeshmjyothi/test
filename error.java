@@ -1,186 +1,91 @@
-package com.epay.rns.service;
-
-import com.sbi.epay.logging.utility.LoggerFactoryUtility;
-import com.sbi.epay.logging.utility.LoggerUtility;
-import lombok.RequiredArgsConstructor;
-import org.apache.spark.sql.Column;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.functions;
-import org.springframework.stereotype.Service;
-import scala.collection.JavaConverters;
-
-import java.sql.Date;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.lang.System.currentTimeMillis;
-import static org.apache.spark.sql.functions.lit;
-
-@Service
-@RequiredArgsConstructor
-public class ReconService {
-    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
-    private final JdbcReaderService jdbcReaderService;
-    private final SparkService sparkService;
-
-    public void reconProcess(String rfsId) {
-        logger.info("Recon process started.");
-        long processStartTime = currentTimeMillis();
-        logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
-
-        // Load datasets
-        logger.info("🚀 fetch merchant order payments starts : {} ", currentTimeMillis());
-        long localStartTime = currentTimeMillis();
-        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", 1726138792000L, 1726138792000L).alias("src");
-        logger.info("🚀 fetch merchant order payments ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        logger.info("🚀 fetch recon file details starts : {}", currentTimeMillis());
-        localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", 1726138792000L, 1726138792000L).alias("tgt");
-        logger.info("🚀 fetch recon file details ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        // Rename recon file columns to match source
-        reconFileDtls = renameColumns(reconFileDtls).alias("recon");
-
-        // Join and match logic
-        Column joinCond = reconFileDtls.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
-                .and(reconFileDtls.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
-
-        Column valueMatch = joinCond;
-        for (String col : columnMapping().keySet()) {
-            valueMatch = valueMatch.and(reconFileDtls.col(col).equalTo(merchantOrderPayments.col(col)));
-        }
-
-        //Filter only unique ATRN_NUMs from reconFileDtls
-        Dataset<Row> reconUnique = reconFileDtls.groupBy("ATRN_NUM")
-                .count()
-                .filter("count = 1")
-                .select("ATRN_NUM");
-
-        Dataset<Row> filteredRecon = reconFileDtls.join(reconUnique, "ATRN_NUM");
-
-        //Join unique-only records to find matched ones
-        Column matchCondition = filteredRecon.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
-                .and(filteredRecon.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
-
-        // Matched rows
-        logger.info("🚀 Fetch matched data starts: {}", currentTimeMillis());
-        localStartTime = currentTimeMillis();
-        Dataset<Row> matched = filteredRecon
-                .join(merchantOrderPayments, matchCondition, "inner")
-                .dropDuplicates("ATRN_NUM");
-        logger.info("🚀 Fetch matched data ends at: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        // Unmatched rows from reconFileDtls not in merchantOrderPayments
-        logger.info("🚀 Fetch unmatched data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        Dataset<Row> unmatched = reconFileDtls.join(merchantOrderPayments, joinCond, "left_anti").distinct();
-        logger.info("🚀 Fetch unmatched data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        // Duplicates in reconFileDtls
-        logger.info("🚀 Fetch duplicate data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDetailDuplicate = getDuplicates(reconFileDtls, "ATRN_NUM");
-        logger.info("🚀 Fetch duplicate data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        // Update match_status back in RECON_FILE_DTLS
-        logger.info("🚀 Update process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        /*updateReconFileDetails(matched, "MATCHED");
-        updateReconFileDetails(unmatched, "UNMATCHED");
-        updateReconFileDetails(reconFileDetailDuplicate, "DUPLICATE");*/
-        matched.printSchema();
-        matched.col("RFD_ID");
-        jdbcReaderService.stageReconStatus(matched, "MATCHED");
-        jdbcReaderService.stageReconStatus(unmatched, "UNMATCHED");
-        jdbcReaderService.stageReconStatus(reconFileDetailDuplicate, "DUPLICATE");
-        jdbcReaderService.updateReconFromStage();
-        jdbcReaderService.clearStageTable();
-        logger.info("🚀 Update process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
-    }
-
-    private Dataset<Row> getDuplicates(Dataset<Row> dataset, String... keyCols) {
-        Column[] groupCols = Arrays.stream(keyCols).map(functions::col).toArray(Column[]::new);
-        Dataset<Row> duplicates = dataset.groupBy(groupCols).count().filter("count > 1");
-        return duplicates.join(dataset, JavaConverters.asScalaBufferConverter(Arrays.asList(keyCols)).asScala().toSeq(), "inner");
-    }
-
-    private Dataset<Row> readAndNormalize(String tableName, String dateColumn, long startTime, long endTime) {
-        String query = buildQuery(tableName, dateColumn, startTime, endTime);
-        logger.info("Executing query for table '{}': {}", tableName, query);
-        return normalize(jdbcReaderService.readFromDBWithFilter(tableName));
-    }
-
-    private String buildQuery(String tableName, String dateColumn, long startTime, long endTime) {
-        return String.format("(SELECT * FROM %s WHERE %s BETWEEN %d AND %d) filtered_data", tableName, dateColumn, startTime, endTime);
-    }
-
-    private Dataset<Row> readAndNormalize(String tableName, String column, String value) {
-        String query = buildQuery(tableName, column, value);
-        logger.info("Executing query for table '{}': {}", tableName, query);
-        return normalize(jdbcReaderService.readFromDBWithFilter(tableName));
-    }
-
-    private String buildQuery(String tableName, String column, String value) {
-        return String.format("(SELECT * FROM %s WHERE %s = %s) filtered_data", tableName, column, value);
-    }
-
-    private Dataset<Row> normalize(Dataset<Row> dataset) {
-        for (String col : columnMapping().keySet()) {
-            if (Arrays.asList(dataset.columns()).contains(col)) {
-                dataset = dataset.withColumn(col, functions.trim(dataset.col(col)));
-            }
-        }
-        if (Arrays.asList(dataset.columns()).contains("ATRN_NUM")) {
-            dataset = dataset.withColumn("ATRN_NUM", functions.trim(dataset.col("ATRN_NUM")));
-        }
-        return dataset;
-    }
-
-    private Dataset<Row> renameColumns(Dataset<Row> dataset) {
-        for (Map.Entry<String, String> entry : columnMapping().entrySet()) {
-            if (Arrays.asList(dataset.columns()).contains(entry.getValue())) {
-                dataset = dataset.withColumnRenamed(entry.getValue(), entry.getKey());
-            }
-        }
-        return dataset;
-    }
-
-    private Map<String, String> columnMapping() {
-        Map<String, String> columnMappings = new HashMap<>();
-        columnMappings.put("DEBIT_AMT", "PAYMENT_AMOUNT");
-        columnMappings.put("ATRN_NUM", "ATRN_NUM");
-        columnMappings.put("PAYMENT_STATUS", "STATUS");
-
-        return columnMappings;
-    }
-
-    private void saveToReconciliationTable(Dataset<Row> dataset, String matchStatus, String reason) {
-        Date currentTimeStamp = Date.valueOf(LocalDateTime.now().toLocalDate());
-        Timestamp batchTime = Timestamp.valueOf(LocalDateTime.now());
-        Dataset<Row> resultDataset = dataset
-                .withColumn("match_status", lit(matchStatus))
-                .withColumn("mismatch_reason", lit(reason))
-                .withColumn("source_json", functions.to_json(functions.struct(Arrays.stream(dataset.columns()).map(functions::col).toArray(Column[]::new))))
-                .withColumn("recon_json", functions.to_json(functions.struct(Arrays.stream(dataset.columns()).map(functions::col).toArray(Column[]::new))))
-                .withColumn("reconciled_at", lit(currentTimeStamp))
-                .withColumn("batch_date", lit(batchTime))
-                .repartition(4);
-        jdbcReaderService.writeToReconFileResult(resultDataset, "RECONCILIATION_RESULT");
-    }
-
-    private void updateReconFileDetails(Dataset<Row> dataset, String status) {
-        Dataset<Row> updated = dataset.select(functions.col("recon.ATRN_NUM"))
-                .withColumn("RECON_STATUS", functions.lit(status)).distinct();
-
-        String stageTableName = "RECON_FILE_DTLS_STAGE";
-        jdbcReaderService.writeToStageTable(updated, stageTableName);
-        jdbcReaderService.mergeStageToMain(stageTableName, "RECON_FILE_DTLS", "ATRN_NUM");
-    }
-}
+Error creating bean with name 'sparkController' defined in file [F:\Epay\epay_recon_settlement_service\build\classes\java\main\com\epay\rns\controller\SparkController.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'sparkService' defined in file [F:\Epay\epay_recon_settlement_service\build\classes\java\main\com\epay\rns\service\SparkService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'sparkSession' defined in class path resource [com/epay/rns/config/SparkConfig.class]: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:795)
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1375)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1212)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:975)
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:971)
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:625)
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:754)
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:456)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:335)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1363)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1352)
+	at com.epay.rns.ReconSettlementServiceApplication.main(ReconSettlementServiceApplication.java:28)
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'sparkService' defined in file [F:\Epay\epay_recon_settlement_service\build\classes\java\main\com\epay\rns\service\SparkService.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'sparkSession' defined in class path resource [com/epay/rns/config/SparkConfig.class]: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:795)
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1375)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1212)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358)
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904)
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782)
+	... 19 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'sparkSession' defined in class path resource [com/epay/rns/config/SparkConfig.class]: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:648)
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:485)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1355)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1185)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:562)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.config.DependencyDescriptor.resolveCandidate(DependencyDescriptor.java:254)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1448)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1358)
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:904)
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:782)
+	... 33 common frames omitted
+Caused by: org.springframework.beans.BeanInstantiationException: Failed to instantiate [org.apache.spark.sql.SparkSession]: Factory method 'sparkSession' threw exception with message: jakarta/servlet/SingleThreadModel
+	at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:178)
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiate(ConstructorResolver.java:644)
+	... 47 common frames omitted
+Caused by: java.lang.NoClassDefFoundError: jakarta/servlet/SingleThreadModel
+	at org.sparkproject.jetty.servlet.ServletHolder.setServlet(ServletHolder.java:173)
+	at org.sparkproject.jetty.servlet.ServletHolder.<init>(ServletHolder.java:120)
+	at org.apache.spark.ui.JettyUtils$.createServletHandler(JettyUtils.scala:121)
+	at org.apache.spark.ui.JettyUtils$.createServletHandler(JettyUtils.scala:107)
+	at org.apache.spark.metrics.sink.MetricsServlet.getHandlers(MetricsServlet.scala:50)
+	at org.apache.spark.metrics.MetricsSystem.$anonfun$getServletHandlers$2(MetricsSystem.scala:91)
+	at scala.Option.map(Option.scala:242)
+	at org.apache.spark.metrics.MetricsSystem.getServletHandlers(MetricsSystem.scala:91)
+	at org.apache.spark.SparkContext.<init>(SparkContext.scala:694)
+	at org.apache.spark.SparkContext$.getOrCreate(SparkContext.scala:3055)
+	at org.apache.spark.sql.classic.SparkSession$Builder.$anonfun$build$2(SparkSession.scala:839)
+	at scala.Option.getOrElse(Option.scala:201)
+	at org.apache.spark.sql.classic.SparkSession$Builder.build(SparkSession.scala:830)
+	at org.apache.spark.sql.classic.SparkSession$Builder.getOrCreate(SparkSession.scala:859)
+	at org.apache.spark.sql.classic.SparkSession$Builder.getOrCreate(SparkSession.scala:732)
+	at org.apache.spark.sql.SparkSession$Builder.getOrCreate(SparkSession.scala:923)
+	at com.epay.rns.config.SparkConfig.sparkSession(SparkConfig.java:29)
+	at com.epay.rns.config.SparkConfig$$SpringCGLIB$$0.CGLIB$sparkSession$2(<generated>)
+	at com.epay.rns.config.SparkConfig$$SpringCGLIB$$FastClass$$1.invoke(<generated>)
+	at org.springframework.cglib.proxy.MethodProxy.invokeSuper(MethodProxy.java:258)
+	at org.springframework.context.annotation.ConfigurationClassEnhancer$BeanMethodInterceptor.intercept(ConfigurationClassEnhancer.java:370)
+	at com.epay.rns.config.SparkConfig$$SpringCGLIB$$0.sparkSession(<generated>)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.beans.factory.support.SimpleInstantiationStrategy.instantiate(SimpleInstantiationStrategy.java:146)
+	... 48 common frames omitted
+Caused by: java.lang.ClassNotFoundException: jakarta.servlet.SingleThreadModel
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/jdk.internal.loader.ClassLoaders$AppClassLoader.loadClass(ClassLoaders.java:188)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526)
+	... 73 common frames omitted
