@@ -118,3 +118,18 @@ Caused by: org.apache.kafka.common.errors.TimeoutException: Topic matched_recon_
         publishToKafka(matched, "matched_recon_file_details");
         publishToKafka(unmatched, "unmatched_recon_file_details");
         publishToKafka(reconFileDetailDuplicate, "duplicate_recon_file_details");
+
+
+ private void publishToKafka(Dataset<Row> dataset, String topic){
+       Dataset<Row> kafkaDf = dataset.selectExpr(
+               "CAST(RFD_ID AS STRING) AS KEY",
+               "to_json(named_struct('RFD_ID', RFD_ID, 'ATRN_NUM', recon.ATRN_NUM)) AS value"
+       );
+
+       kafkaDf.write()
+               .format("kafka")
+               .option("kafka.bootstrap.servers", "dev-cluster-kafka-bootstrap-dev-kafka.apps.dev.sbiepay.sbi:443")
+               .option("topic", topic)
+               .save();
+       logger.info("RFD_ID is published to kafka.");
+    }
