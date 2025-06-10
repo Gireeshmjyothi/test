@@ -1,135 +1,24 @@
-org.apache.spark.SparkException: Job aborted due to stage failure: Task 0 in stage 11.0 failed 1 times, most recent failure: Lost task 0.0 in stage 11.0 (TID 6) (DESKTOP-8ED0TAP.CORP.AD.SBI executor driver): org.apache.kafka.common.errors.TimeoutException: Topic matched_recon_file_details not present in metadata after 60000 ms.
+private void publishToKafka(Dataset<Row> dataset, String topic) {
+    if (dataset.isEmpty()) {
+        logger.info("Dataset is empty. Skipping Kafka publish for topic: {}", topic);
+        return;
+    }
 
-Driver stacktrace:
-	at org.apache.spark.scheduler.DAGScheduler.failJobAndIndependentStages(DAGScheduler.scala:2856)
-	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2(DAGScheduler.scala:2792)
-	at org.apache.spark.scheduler.DAGScheduler.$anonfun$abortStage$2$adapted(DAGScheduler.scala:2791)
-	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
-	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
-	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
-	at org.apache.spark.scheduler.DAGScheduler.abortStage(DAGScheduler.scala:2791)
-	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1(DAGScheduler.scala:1247)
-	at org.apache.spark.scheduler.DAGScheduler.$anonfun$handleTaskSetFailed$1$adapted(DAGScheduler.scala:1247)
-	at scala.Option.foreach(Option.scala:407)
-	at org.apache.spark.scheduler.DAGScheduler.handleTaskSetFailed(DAGScheduler.scala:1247)
-	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.doOnReceive(DAGScheduler.scala:3060)
-	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2994)
-	at org.apache.spark.scheduler.DAGSchedulerEventProcessLoop.onReceive(DAGScheduler.scala:2983)
-	at org.apache.spark.util.EventLoop$$anon$1.run(EventLoop.scala:49)
-	at org.apache.spark.scheduler.DAGScheduler.runJob(DAGScheduler.scala:989)
-	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2393)
-	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2414)
-	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2433)
-	at org.apache.spark.SparkContext.runJob(SparkContext.scala:2458)
-	at org.apache.spark.rdd.RDD.$anonfun$foreachPartition$1(RDD.scala:1039)
-	at org.apache.spark.rdd.RDDOperationScope$.withScope(RDDOperationScope.scala:151)
-	at org.apache.spark.rdd.RDDOperationScope$.withScope(RDDOperationScope.scala:112)
-	at org.apache.spark.rdd.RDD.withScope(RDD.scala:410)
-	at org.apache.spark.rdd.RDD.foreachPartition(RDD.scala:1037)
-	at org.apache.spark.sql.kafka010.KafkaWriter$.write(KafkaWriter.scala:71)
-	at org.apache.spark.sql.kafka010.KafkaSourceProvider.createRelation(KafkaSourceProvider.scala:183)
-	at org.apache.spark.sql.execution.datasources.SaveIntoDataSourceCommand.run(SaveIntoDataSourceCommand.scala:48)
-	at org.apache.spark.sql.execution.command.ExecutedCommandExec.sideEffectResult$lzycompute(commands.scala:75)
-	at org.apache.spark.sql.execution.command.ExecutedCommandExec.sideEffectResult(commands.scala:73)
-	at org.apache.spark.sql.execution.command.ExecutedCommandExec.executeCollect(commands.scala:84)
-	at org.apache.spark.sql.execution.QueryExecution$$anonfun$eagerlyExecuteCommands$1.$anonfun$applyOrElse$1(QueryExecution.scala:107)
-	at org.apache.spark.sql.execution.SQLExecution$.$anonfun$withNewExecutionId$6(SQLExecution.scala:125)
-	at org.apache.spark.sql.execution.SQLExecution$.withSQLConfPropagated(SQLExecution.scala:201)
-	at org.apache.spark.sql.execution.SQLExecution$.$anonfun$withNewExecutionId$1(SQLExecution.scala:108)
-	at org.apache.spark.sql.SparkSession.withActive(SparkSession.scala:900)
-	at org.apache.spark.sql.execution.SQLExecution$.withNewExecutionId(SQLExecution.scala:66)
-	at org.apache.spark.sql.execution.QueryExecution$$anonfun$eagerlyExecuteCommands$1.applyOrElse(QueryExecution.scala:107)
-	at org.apache.spark.sql.execution.QueryExecution$$anonfun$eagerlyExecuteCommands$1.applyOrElse(QueryExecution.scala:98)
-	at org.apache.spark.sql.catalyst.trees.TreeNode.$anonfun$transformDownWithPruning$1(TreeNode.scala:461)
-	at org.apache.spark.sql.catalyst.trees.CurrentOrigin$.withOrigin(origin.scala:76)
-	at org.apache.spark.sql.catalyst.trees.TreeNode.transformDownWithPruning(TreeNode.scala:461)
-	at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.org$apache$spark$sql$catalyst$plans$logical$AnalysisHelper$$super$transformDownWithPruning(LogicalPlan.scala:32)
-	at org.apache.spark.sql.catalyst.plans.logical.AnalysisHelper.transformDownWithPruning(AnalysisHelper.scala:267)
-	at org.apache.spark.sql.catalyst.plans.logical.AnalysisHelper.transformDownWithPruning$(AnalysisHelper.scala:263)
-	at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.transformDownWithPruning(LogicalPlan.scala:32)
-	at org.apache.spark.sql.catalyst.plans.logical.LogicalPlan.transformDownWithPruning(LogicalPlan.scala:32)
-	at org.apache.spark.sql.catalyst.trees.TreeNode.transformDown(TreeNode.scala:437)
-	at org.apache.spark.sql.execution.QueryExecution.eagerlyExecuteCommands(QueryExecution.scala:98)
-	at org.apache.spark.sql.execution.QueryExecution.commandExecuted$lzycompute(QueryExecution.scala:85)
-	at org.apache.spark.sql.execution.QueryExecution.commandExecuted(QueryExecution.scala:83)
-	at org.apache.spark.sql.execution.QueryExecution.assertCommandExecuted(QueryExecution.scala:142)
-	at org.apache.spark.sql.DataFrameWriter.runCommand(DataFrameWriter.scala:869)
-	at org.apache.spark.sql.DataFrameWriter.saveToV1Source(DataFrameWriter.scala:391)
-	at org.apache.spark.sql.DataFrameWriter.saveInternal(DataFrameWriter.scala:364)
-	at org.apache.spark.sql.DataFrameWriter.save(DataFrameWriter.scala:251)
-	at com.epay.rns.service.ReconService.publishToKafka(ReconService.java:203)
-	at com.epay.rns.service.ReconService.reconProcess(ReconService.java:95)
-	at com.epay.rns.controller.SparkController.reconProcess(SparkController.java:32)
-	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:255)
-	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:188)
-	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118)
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:926)
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:831)
-	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87)
-	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
-	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
-	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
-	at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:903)
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:564)
-	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:195)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167)
-	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90)
-	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:483)
-	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115)
-	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93)
-	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74)
-	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:344)
-	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:397)
-	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
-	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905)
-	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743)
-	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190)
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659)
-	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
-	at java.base/java.lang.Thread.run(Thread.java:1583)
-Caused by: org.apache.kafka.common.errors.TimeoutException: Topic matched_recon_file_details not present in metadata after 60000 ms.
+    try {
+        Dataset<Row> kafkaDf = dataset.selectExpr(
+            "CAST(RFD_ID AS STRING) AS key", // Kafka requires key/value as STRING or BINARY
+            "to_json(named_struct('RFD_ID', CAST(RFD_ID AS STRING), 'ATRN_NUM', recon.ATRN_NUM)) AS value"
+        );
 
-
-
-
-
-        //Publish data to kafka
-        publishToKafka(matched, "matched_recon_file_details");
-        publishToKafka(unmatched, "unmatched_recon_file_details");
-        publishToKafka(reconFileDetailDuplicate, "duplicate_recon_file_details");
-
-
- private void publishToKafka(Dataset<Row> dataset, String topic){
-       Dataset<Row> kafkaDf = dataset.selectExpr(
-               "CAST(RFD_ID AS STRING) AS KEY",
-               "to_json(named_struct('RFD_ID', RFD_ID, 'ATRN_NUM', recon.ATRN_NUM)) AS value"
-       );
-
-       kafkaDf.write()
+        kafkaDf.write()
                .format("kafka")
                .option("kafka.bootstrap.servers", "dev-cluster-kafka-bootstrap-dev-kafka.apps.dev.sbiepay.sbi:443")
                .option("topic", topic)
                .save();
-       logger.info("RFD_ID is published to kafka.");
+
+        logger.info("Successfully published {} records to Kafka topic '{}'.", dataset.count(), topic);
+
+    } catch (Exception e) {
+        logger.error("Failed to publish data to Kafka topic '{}': {}", topic, e.getMessage(), e);
     }
+}
