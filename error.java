@@ -1,47 +1,42 @@
-import static org.apache.spark.sql.functions.*;
-import org.apache.kafka.clients.producer.*;
-
-import java.util.*;
-
 private void publishInBatchesToKafka(Dataset<Row> dataset, String topic, String status) {
-    // Add status and repartition to control load
     Dataset<Row> enrichedDf = dataset
         .withColumn("STATUS", lit(status))
-        .repartition(100); // adjust this based on your Kafka topic partitions and message size
+        .repartition(100); // Tune based on your data size & Kafka partition count
 
     enrichedDf.foreachPartition(partition -> {
-        // Kafka producer setup
         Properties props = new Properties();
         props.put("bootstrap.servers", "your-kafka:9092");
         props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
         props.put("acks", "1");
+        props.put("max.request.size", "5000000"); // Increase if needed
 
         KafkaProducer<String, String> producer = new KafkaProducer<>(props);
 
         List<String> batch = new ArrayList<>();
-        final int BATCH_SIZE = 500; // tune this based on expected record size and Kafka's message.max.bytes
+        final int BATCH_SIZE = 500;
 
         while (partition.hasNext()) {
             Row row = partition.next();
 
+            byte[] rfdBytes = row.getAs("RFD_ID");
+            String rfdHex = bytesToHex(rfdBytes).toUpperCase();
+
+            String atrnNum = row.getAs("ATRN_NUM").toString();
+
             String json = String.format(
                 "{\"RFD_ID\":\"%s\", \"ATRN_NUM\":\"%s\", \"STATUS\":\"%s\"}",
-                row.getAs("RFD_ID").toString().toUpperCase(),
-                row.getAs("ATRN_NUM"),
-                status
+                rfdHex, atrnNum, status
             );
 
             batch.add(json);
 
-            // When batch limit is reached, publish
             if (batch.size() >= BATCH_SIZE) {
                 sendBatch(producer, topic, batch, status);
                 batch.clear();
             }
         }
 
-        // Send leftover records
         if (!batch.isEmpty()) {
             sendBatch(producer, topic, batch, status);
         }
@@ -50,10 +45,11 @@ private void publishInBatchesToKafka(Dataset<Row> dataset, String topic, String 
     });
 }
 
-// Helper method to send batch to Kafka
-private void sendBatch(KafkaProducer<String, String> producer, String topic, List<String> batch, String status) {
-    String uuidKey = UUID.randomUUID().toString() + "_" + status;
-    String payload = "[" + String.join(",", batch) + "]";
-    ProducerRecord<String, String> record = new ProducerRecord<>(topic, uuidKey, payload);
-    producer.send(record);
+
+private String bytesToHex(byte[] bytes) {
+    StringBuilder sb = new StringBuilder();
+    for (byte b : bytes) {
+        sb.append(String.format("%02x", b));
+    }
+    return sb.toString();
 }
