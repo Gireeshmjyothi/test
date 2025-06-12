@@ -1,89 +1,36 @@
-private void publishToKafka(Dataset<Row> dataset, String topic, String reconStatus) {
-        try {
-            Dataset<Row> kafkaDf = dataset.selectExpr(
-                    "upper(hex(RFD_ID)) AS key",
-                    "to_json(named_struct(" +
-                            "'rfdId', upper(hex(RFD_ID)), " +
-                            "'atrnNum', recon.ATRN_NUM, " +
-                            "'status', '" + reconStatus + "'" +
-                            ")) AS value"
-            );
-            kafkaDf.show(false);
-            kafkaDf.writeStream()
-                    .format("kafka")
-                    .option("kafka.bootstrap.servers", "dev-cluster-kafka-bootstrap-dev-kafka.apps.dev.sbiepay.sbi:443")
-                    .option("kafka.security.protocol", "SSL")
-                    .option("kafka.ssl.truststore.location", CommonUtil.getAbsolutePath("certs/kafka/dev-cluster-cluster-ca-cert.p12"))
-                    .option("kafka.ssl.truststore.password", "Xe8FrxOGvVAx")
-                    .option("kafka.ssl.truststore.type", "PKCS12")
-                    .option("kafka.ssl.keystore.location", CommonUtil.getAbsolutePath("certs/kafka/dev-cluster-clients-ca-cert.p12"))
-                    .option("kafka.ssl.keystore.password", "J55FITkgEFid")
-                    .option("kafka.ssl.keystore.type", "PKCS12")
-                    .option("topic", topic)
-                    .option("checkpointLocation", "/temp/checkpoints/publishToKafka_" + topic) // required
-                    .outputMode("append")
-                    .start()
-                    .awaitTermination();
+import static org.apache.spark.sql.functions.*;
 
-            logger.info("Successfully published records to Kafka topic '{}'.", topic);
+private void publishListToKafka(Dataset<Row> dataset, String topic, String status) {
+    try {
+        // Add STATUS column dynamically
+        Dataset<Row> enrichedDf = dataset.withColumn("STATUS", lit(status));
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            logger.error("Failed to publish data to Kafka topic '{}': {}", topic, e.getMessage());
-        }
+        // Create a struct for each row with UUID as key
+        Dataset<Row> jsonDf = enrichedDf.selectExpr(
+            "named_struct(" +
+                "'RFD_ID', upper(hex(RFD_ID)), " +  // UUID format
+                "'ATRN_NUM', ATRN_NUM, " +
+                "'STATUS', STATUS" +
+            ") as record"
+        );
 
+        // Collect all records into a JSON array string
+        Dataset<Row> aggregated = jsonDf
+            .agg(to_json(collect_list(col("record"))).alias("value"))
+            .withColumn("key", expr("uuid()")); // Generate a random UUID for the key
 
-org.apache.spark.sql.AnalysisException: [WRITE_STREAM_NOT_ALLOWED] `writeStream` can be called only on streaming Dataset/DataFrame.
-	at org.apache.spark.sql.catalyst.analysis.package$AnalysisErrorAt.failAnalysis(package.scala:52)
-	at org.apache.spark.sql.Dataset.writeStream(Dataset.scala:4034)
-	at com.epay.rns.service.ReconService.publishToKafka(ReconService.java:237)
-	at com.epay.rns.service.ReconService.reconProcess(ReconService.java:99)
-	at com.epay.rns.controller.SparkController.reconProcess(SparkController.java:36)
-	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
-	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
-	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:255)
-	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:188)
-	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118)
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:926)
-	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:831)
-	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87)
-	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
-	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
-	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
-	at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:903)
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:564)
-	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
-	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:195)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
-	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
-	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:164)
-	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:140)
-	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167)
-	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90)
-	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:483)
-	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115)
-	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93)
-	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74)
-	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:344)
-	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:397)
-	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
-	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905)
-	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743)
-	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190)
-	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659)
-	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
-	at java.base/java.lang.Thread.run(Thread.java:1583)
+        // Write as a single Kafka message
+        aggregated
+            .selectExpr("cast(key as string)", "cast(value as string)")
+            .write()
+            .format("kafka")
+            .option("kafka.bootstrap.servers", "your-kafka:9092")
+            .option("topic", topic)
+            .save();
+
+        logger.info("Published bulk UUID-keyed message with STATUS='{}' to topic {}", status, topic);
+
+    } catch (Exception e) {
+        logger.error("Error publishing to Kafka topic '{}': {}", topic, e.getMessage(), e);
+    }
+}
