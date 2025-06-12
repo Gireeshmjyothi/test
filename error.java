@@ -76,9 +76,9 @@ private void publishToKafka(Dataset<Row> dataset, String topic, String status) {
     });
 }
 private static void sendBatch(KafkaProducer<String, String> producer, String topic, List<String> batch) {
-    for (String msg : batch) {
-        producer.send(new ProducerRecord<>(topic, UUID.randomUUID().toString(), msg));
-    }
+    // Convert List<String> to JSON array
+    String jsonArray = "[" + String.join(",", batch) + "]";
+    producer.send(new ProducerRecord<>(topic, UUID.randomUUID().toString(), jsonArray));
 }
 
 private static String bytesToHex(byte[] bytes) {
