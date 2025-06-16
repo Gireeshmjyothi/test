@@ -1,13 +1,3 @@
-public interface ReconStatusCountProjection {
-    UUID getRfsId();
-    String getReconStatus();
-    Long getCount();
-}
-
-@Query(value = """
-    SELECT RFS_ID as rfsId, RECON_STATUS as reconStatus, COUNT(*) as count
-    FROM RECON_FILE_DTLS
-    WHERE RFS_ID = :rfsId
-    GROUP BY RFS_ID, RECON_STATUS
-    """, nativeQuery = true)
-List<ReconStatusCountProjection> findReconStatusCountByRfsId(@Param("rfsId") UUID rfsId);
+org.springframework.dao.DataIntegrityViolationException: JDBC exception executing SQL [UPDATE RECON_FILE_SUMMARY SET MATCHED_RECORDS = ?, UNMATCHED_RECORDS = ?, DUPLICATE_RECORDS = ?, RECON_STATUS =?
+   WHERE RFS_ID = ?
+] [ORA-02290: check constraint (BHOOPENDRA_RAJPUT.SYS_C00224082) violated
