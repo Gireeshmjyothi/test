@@ -1,90 +1,52 @@
-public void reconProcess(UUID rfsId) {
-        logger.info("Recon process started.");
-        long processStartTime = currentTimeMillis();
-        logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
+CREATE TABLE RECON_STATUS_STAGE (
+    RFD_ID RAW(16),
+    RECON_STATUS VARCHAR2(20)
+);
 
-        // Load datasets
-        logger.info("🚀 fetch merchant order payments starts : {} ", currentTimeMillis());
-        long localStartTime = currentTimeMillis();
-        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", 1726138792000L, 1726138792000L).alias("src");
-        logger.info("🚀 fetch merchant order payments ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+CREATE INDEX RSS_RFD_ID_IDX ON RECON_STATUS_STAGE(RFD_ID);
 
-        logger.info("🚀 fetch recon file details starts : {}", currentTimeMillis());
-        localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "RFS_ID", rfsId).alias("tgt");
-        logger.info("🚀 fetch recon file details ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+Dataset<Row> matchedWithStatus = matched.withColumn("RECON_STATUS", lit("MATCHED"));
+Dataset<Row> unmatchedWithStatus = unmatched.withColumn("RECON_STATUS", lit("UNMATCHED"));
+Dataset<Row> duplicateWithStatus = reconFileDetailDuplicate.withColumn("RECON_STATUS", lit("DUPLICATE"));
 
-        // Rename recon file columns to match source
-        reconFileDtls = renameColumns(reconFileDtls).alias("recon");
+Dataset<Row> finalReconStatusUpdate = matchedWithStatus
+    .select("RFD_ID", "RECON_STATUS")
+    .union(unmatchedWithStatus.select("RFD_ID", "RECON_STATUS"))
+    .union(duplicateWithStatus.select("RFD_ID", "RECON_STATUS"));
 
-        // Join and match logic
-        Column joinCond = reconFileDtls.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
-                .and(reconFileDtls.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
 
-        Column valueMatch = joinCond;
-        for (String col : columnMapping().keySet()) {
-            valueMatch = valueMatch.and(reconFileDtls.col(col).equalTo(merchantOrderPayments.col(col)));
-        }
+public void writeToStagingTable(Dataset<Row> dataset, String tableName) {
+    Properties connectionProperties = new Properties();
+    connectionProperties.put("user", "YOUR_DB_USER");
+    connectionProperties.put("password", "YOUR_DB_PASSWORD");
+    connectionProperties.put("driver", "oracle.jdbc.OracleDriver");
 
-        //Filter only unique ATRN_NUMs from reconFileDtls
-        Dataset<Row> reconUnique = reconFileDtls.groupBy("ATRN_NUM")
-                .count()
-                .filter("count = 1")
-                .select("ATRN_NUM");
+    String jdbcUrl = "jdbc:oracle:thin:@//YOUR_HOST:YOUR_PORT/YOUR_SID";
 
-        Dataset<Row> filteredRecon = reconFileDtls.join(reconUnique, "ATRN_NUM");
+    dataset.write()
+        .mode(SaveMode.Overwrite)
+        .jdbc(jdbcUrl, tableName, connectionProperties);
+}
 
-        //Join unique-only records to find matched ones
-        Column matchCondition = filteredRecon.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
-                .and(filteredRecon.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
 
-        // Matched rows
-        logger.info("🚀 Fetch matched data starts: {}", currentTimeMillis());
-        localStartTime = currentTimeMillis();
-        Dataset<Row> matched = filteredRecon
-                .join(merchantOrderPayments, matchCondition, "inner")
-                .dropDuplicates("ATRN_NUM");
-        logger.info("🚀 Fetch matched data ends at: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
 
-        // Unmatched rows from reconFileDtls not in merchantOrderPayments
-        logger.info("🚀 Fetch unmatched data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        Dataset<Row> unmatched = reconFileDtls.join(merchantOrderPayments, joinCond, "left_anti").distinct();
-        logger.info("🚀 Fetch unmatched data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+@Autowired
+private DataSource dataSource;
 
-        // Duplicates in reconFileDtls
-        logger.info("🚀 Fetch duplicate data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDetailDuplicate = getDuplicates(reconFileDtls, "ATRN_NUM");
-        logger.info("🚀 Fetch duplicate data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+public void mergeReconStatusUpdates() {
+    String mergeSQL = """
+        MERGE INTO RECON_FILE_DTLS tgt
+        USING RECON_STATUS_STAGE stage
+        ON (tgt.RFD_ID = stage.RFD_ID)
+        WHEN MATCHED THEN
+          UPDATE SET tgt.RECON_STATUS = stage.RECON_STATUS
+    """;
 
-        // Update match_status back in RECON_FILE_DTLS
-        logger.info("🚀 Update process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        
-        //TODO-update logic function
-        logger.info("🚀 Update process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
-
-        logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
-        List<ReconStatusCountProjection> reconStatusCountProjectionList = reconFileDtlsDao.getReconStatusCount(rfsId);
-        reconFileSummaryDao.updateReconFileSummary(reconStatusCountProjectionList);
-
+    try (Connection conn = dataSource.getConnection();
+         Statement stmt = conn.createStatement()) {
+        stmt.executeUpdate(mergeSQL);
+    } catch (SQLException e) {
+        log.error("Failed to merge RECON status updates", e);
+        throw new RuntimeException(e);
     }
-
-CREATE TABLE RECON_FILE_DTLS(
-    RFD_ID                RAW(16) DEFAULT SYS_GUID() PRIMARY KEY,
-    RFS_ID                RAW(16),
-    ROW_NUMBER            NUMBER,
-    RECORD_TYPE           VARCHAR2(100),
-    ATRN_NUM              VARCHAR2(30),
-    PAYMENT_AMOUNT        NUMBER(20, 2),
-    PAYMENT_DATE          DATE,
-    BANK_REF_NUMBER       VARCHAR2(30),
-    PAYMENT_STATUS        VARCHAR2(20),
-    RECON_STATUS          VARCHAR2(20) DEFAULT 'PENDING' CHECK (RECON_STATUS IN ('PENDING','MATCHED','UNMATCHED','DUPLICATE')) ENABLE,
-    SETTLEMENT_STATUS     VARCHAR2(20) DEFAULT 'PENDING' CHECK (SETTLEMENT_STATUS IN ('PENDING','SUCCESS','FAIL')) ENABLE,
-    REMARK	              VARCHAR(500)
-    );
-
-
-CREATE INDEX RFD_RFS_ID_IDX ON RECON_FILE_DTLS (RFS_ID) ;
+}
