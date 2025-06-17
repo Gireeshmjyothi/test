@@ -1,8 +1,12 @@
-public void registerUuidToHexUdf(SparkSession spark) {
-    spark.udf().register("uuidToHex", (UDF1<String, String>) uuidStr -> {
-        UUID uuid = UUID.fromString(uuidStr);
-        return uuid.toString().replace("-", "").toUpperCase();  // optional: no dashes, uppercase
-    }, DataTypes.StringType);
+private Dataset<Row> convertRfdIdToBytes(Dataset<Row> dataset) {
+    return dataset.withColumn("RFD_ID", callUDF("uuidToBytes", col("RFD_ID")))
+                  .select("RFD_ID", "RECON_STATUS");
 }
 
-.withColumn("RFD_ID", functions.callUDF("uuidToHex", col("RFD_ID")))
+Dataset<Row> matchedConverted = convertRfdIdToBytes(matchedWithStatus);
+Dataset<Row> unmatchedConverted = convertRfdIdToBytes(unmatchedWithStatus);
+Dataset<Row> duplicateConverted = convertRfdIdToBytes(duplicateWithStatus);
+
+Dataset<Row> finalReconStatusUpdate = matchedConverted
+    .union(unmatchedConverted)
+    .union(duplicateConverted);
