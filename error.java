@@ -78,3 +78,58 @@ public void mergeReconStatusUpdates() {
         throw new RuntimeException(e);
     }
 }
+
+import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.functions.*;
+
+import java.nio.ByteBuffer;
+import java.util.UUID;
+import org.apache.spark.sql.api.java.UDF1;
+import org.apache.spark.sql.types.DataTypes;
+
+public class YourSparkJob {
+    public static void main(String[] args) {
+        SparkSession spark = SparkSession.builder()
+                .appName("Recon Status Update")
+                .getOrCreate();
+
+        // 🔹 Register the UDF right after creating Spark session
+        spark.udf().register("uuidToBytes", (UDF1<String, byte[]>) uuidStr -> {
+            UUID uuid = UUID.fromString(uuidStr);
+            ByteBuffer buffer = ByteBuffer.wrap(new byte[16]);
+            buffer.putLong(uuid.getMostSignificantBits());
+            buffer.putLong(uuid.getLeastSignificantBits());
+            return buffer.array();
+        }, DataTypes.BinaryType);
+
+        // 🔹 Now proceed with loading your matched/unmatched/duplicate datasets
+        Dataset<Row> matchedWithStatus = ...;
+        Dataset<Row> unmatchedWithStatus = ...;
+        Dataset<Row> duplicateWithStatus = ...;
+
+        // 🔹 Convert UUID string to bytes using the UDF
+        Dataset<Row> matchedConverted = matchedWithStatus
+            .withColumn("RFD_ID", functions.callUDF("uuidToBytes", col("RFD_ID")))
+            .select("RFD_ID", "RECON_STATUS");
+
+        Dataset<Row> unmatchedConverted = unmatchedWithStatus
+            .withColumn("RFD_ID", functions.callUDF("uuidToBytes", col("RFD_ID")))
+            .select("RFD_ID", "RECON_STATUS");
+
+        Dataset<Row> duplicateConverted = duplicateWithStatus
+            .withColumn("RFD_ID", functions.callUDF("uuidToBytes", col("RFD_ID")))
+            .select("RFD_ID", "RECON_STATUS");
+
+        Dataset<Row> finalReconStatusUpdate = matchedConverted
+            .union(unmatchedConverted)
+            .union(duplicateConverted);
+
+        // Then write to JDBC
+        finalReconStatusUpdate.write()
+            .mode(SaveMode.Overwrite)
+            .jdbc("jdbc:oracle:thin:@//YOUR_HOST:YOUR_PORT/YOUR_SID", "RECON_STATUS_STAGE", connectionProperties);
+    }
+}
+
