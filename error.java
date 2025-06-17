@@ -29,6 +29,34 @@ public void writeToStagingTable(Dataset<Row> dataset, String tableName) {
 }
 
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ReconStatusUpdater {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    public void updateReconStatusFromStage() {
+        String mergeSql = """
+            MERGE INTO RECON_FILE_DTLS tgt
+            USING RECON_STATUS_STAGE src
+            ON (tgt.RFD_ID = src.RFD_ID)
+            WHEN MATCHED THEN
+              UPDATE SET tgt.RECON_STATUS = src.RECON_STATUS
+        """;
+
+        jdbcTemplate.update(mergeSql);
+    }
+
+    public void clearStageTable() {
+        jdbcTemplate.update("TRUNCATE TABLE RECON_STATUS_STAGE");
+    }
+}
+
+
 
 @Autowired
 private DataSource dataSource;
