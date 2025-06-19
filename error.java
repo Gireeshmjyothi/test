@@ -1,150 +1,190 @@
-Certainly! Here's a Jira Story (with sub-tasks and a README snippet) tailored for setting up an Apache Spark standalone cluster for development or testing purposes.
+Perfect — since you're using Apache Spark for Java development on Windows, here's a clean Spark setup guide for Java-only usage, without Python or PySpark steps.
 
 
 ---
 
-🧾 Main Story (Jira)
+📘 Apache Spark (Java) Setup Guide for Windows
 
-📌 Story Title:
+🎯 Objective:
 
-Set up Apache Spark standalone cluster environment for application integration
-
-
----
-
-📝 Story Description:
-
-Set up and configure an Apache Spark standalone cluster (master and worker nodes) on a Windows machine to support running Spark jobs from the Spring Boot application.
-
-This setup allows developers to simulate a production-like cluster locally, enabling better testing and performance tuning of Spark-based workloads.
-
-The setup should work with Java 21 and be integrated into the Gradle-based Spring Boot project.
+To install and configure Apache Spark for Java-based development on Windows machines. This setup avoids Python and PySpark dependencies and ensures consistency across your team.
 
 
 ---
 
-✅ Acceptance Criteria:
+🧰 Prerequisites
 
-A Spark master and at least one worker node are running locally.
+Tool	Recommended Version	Purpose
 
-Spark is accessible via the web UI (http://localhost:8080 or 4040/7077 as configured).
-
-The Spring Boot application connects and submits jobs to the standalone Spark master (spark://localhost:7077).
-
-The setup works with Java 21 and Spark 4.x.
-
-Documentation is provided to guide developers on setup and usage.
+Java (JDK)	8 or 11	Required by Spark
+Spark	3.4.x	Use pre-built with Hadoop
+WinUtils	Hadoop binary	Required for Windows environment
+IDE	IntelliJ / Eclipse	Java project development
+Maven/Gradle	Latest	For managing Spark project builds
 
 
 
 ---
 
-✅ Recommended Sub-Tasks:
+🔧 Step-by-Step Setup
 
-1. Download and configure Apache Spark binaries
+✅ 1. Install Java JDK
 
-Download Spark pre-built with Hadoop (e.g., spark-4.0.0-bin-hadoop3).
-
-Set environment variables (SPARK_HOME, JAVA_HOME, PATH).
-
+1. Download JDK from Oracle:
+https://www.oracle.com/java/technologies/javase-downloads.html
 
 
-2. Start standalone Spark master and worker
+2. Set environment variables:
 
-Use start-master.cmd and start-worker.cmd.
+JAVA_HOME = C:\Program Files\Java\jdk-11.x.x
 
-Connect the worker to spark://localhost:7077.
+Add %JAVA_HOME%\bin to your Path.
 
 
 
-3. Update Spring Boot project to use standalone Spark cluster
+3. Verify:
 
-Update SparkSession to use master("spark://localhost:7077").
-
-
-
-4. Verify job submission to cluster from application
-
-Run a Spark job and validate execution via Spark web UI.
-
-
-
-5. Document setup steps in README or wiki
-
-Include instructions to start the cluster and run the app.
-
+java -version
 
 
 
 
 ---
 
-📄 README Snippet (Apache Spark Standalone Setup)
+✅ 2. Download & Configure Apache Spark
 
-## 🚀 Apache Spark Standalone Cluster Setup
+1. Download Spark from:
+https://spark.apache.org/downloads
+Choose:
 
-This project supports integration with an Apache Spark standalone cluster for development.
+Spark version: 3.4.x
 
-### ✅ Prerequisites:
-- Java 21
-- Gradle 8.x
-- Windows machine
-- Apache Spark 4.0.0 (pre-built with Hadoop)
+Package type: Pre-built for Apache Hadoop 3
 
-### 📦 Download Spark:
-Download Spark from: https://spark.apache.org/downloads.html  
-Use version: `spark-4.0.0-bin-hadoop3`
 
-### 🧰 Setup Environment Variables:
-Add the following to system environment variables:
-```cmd
-SPARK_HOME=C:\path\to\spark-4.0.0-bin-hadoop3
-JAVA_HOME=C:\path\to\jdk-21
-PATH=%SPARK_HOME%\bin;%JAVA_HOME%\bin;%PATH%
 
-🟢 Start Spark Master and Worker:
+2. Extract Spark to:
 
-Open 2 CMD terminals:
+C:\spark\spark-3.4.1-bin-hadoop3\
 
-// Start Spark Master
-%SPARK_HOME%\sbin\start-master.cmd
 
-// Start Spark Worker (connect to master URL shown in master UI, e.g., spark://localhost:7077)
-%SPARK_HOME%\sbin\start-worker.cmd spark://localhost:7077
+3. Set environment variables:
 
-Visit: http://localhost:8080 (default Spark master UI)
+SPARK_HOME = C:\spark\spark-3.4.1-bin-hadoop3
 
-⚙️ Spring Boot Spark Configuration:
+Add %SPARK_HOME%\bin to your Path.
 
-@Bean
-public SparkSession sparkSession() {
-    return SparkSession.builder()
-        .appName("StandaloneSparkApp")
-        .master("spark://localhost:7077")
-        .getOrCreate();
+
+
+
+
+---
+
+✅ 3. Configure WinUtils (for Hadoop on Windows)
+
+1. Download winutils.exe (matching Hadoop version) from:
+https://github.com/steveloughran/winutils
+
+
+2. Place it in:
+
+C:\hadoop\bin\winutils.exe
+
+
+3. Set:
+
+HADOOP_HOME = C:\hadoop
+
+Add %HADOOP_HOME%\bin to your Path.
+
+
+
+4. Create temp directory for Hadoop:
+
+mkdir C:\tmp\hadoop
+winutils.exe chmod 777 /tmp/hadoop
+
+
+
+
+---
+
+🧪 Sample Java Spark Project (Using Maven)
+
+Sample pom.xml Dependencies:
+
+<dependencies>
+    <dependency>
+        <groupId>org.apache.spark</groupId>
+        <artifactId>spark-core_2.12</artifactId>
+        <version>3.4.1</version>
+    </dependency>
+</dependencies>
+
+Sample Java Code (Main.java):
+
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.SparkConf;
+
+public class Main {
+    public static void main(String[] args) {
+        SparkConf conf = new SparkConf().setAppName("WordCount").setMaster("local");
+        JavaSparkContext sc = new JavaSparkContext(conf);
+
+        JavaRDD<String> data = sc.textFile("README.md");
+        long count = data.count();
+        System.out.println("Total lines: " + count);
+
+        sc.close();
+    }
 }
 
-🧪 Testing:
-
-Run the Spring Boot app.
-
-Submit a simple job (e.g., read a CSV or process a dataset).
-
-Verify execution via Spark Web UI.
+> Run this using your IDE or command line with Maven.
 
 
-📝 Notes:
-
-This simulates a real cluster for local testing.
-
-Use local[*] if you don’t need multi-process simulation.
-
-You can add more workers on the same or different machines if needed.
 
 
 ---
 
-Let me know if you'd like a ZIP-ready starter Spark project or a shell/batch script to automate the master-worker setup on Windows.
+🔍 Spark Web UI
+
+When you run a Spark job, Spark's Web UI is available at:
+
+http://localhost:4040
 
 
+---
+
+🧼 Stop Spark Processes
+
+If you run Spark in standalone mode:
+
+%SPARK_HOME%\sbin\stop-master.cmd
+%SPARK_HOME%\sbin\stop-worker.cmd
+
+
+---
+
+✅ Final Setup Checklist
+
+✔ Java installed and in JAVA_HOME
+✔ Spark downloaded and in SPARK_HOME
+✔ winutils.exe placed in HADOOP_HOME
+✔ Environment variables configured
+✔ Able to run Java Spark code in IDE
+
+
+---
+
+Let me know if you want:
+
+A Gradle-based Java Spark setup
+
+A downloadable Markdown or PDF version of this guide
+
+A sample IntelliJ project structure
+
+
+I can help generate that instantly.
 
