@@ -39,3 +39,58 @@ public Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDtls, Dataset<Row>
     // Return all three as array
     return new Dataset[]{matchedFinal, duplicate, unmatched};
 }
+
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import static org.apache.spark.sql.functions.*;
+
+public class ReconProcessor {
+
+    public static void process(SparkSession spark, Dataset<Row> reconFileDtls, Dataset<Row> merchantDtls) {
+        // Step 1: Get Matched records (Exact matches on atrnNum and debitAmt)
+        Dataset<Row> matched = reconFileDtls
+            .join(merchantDtls,
+                reconFileDtls.col("atrnNum").equalTo(merchantDtls.col("atrnNum"))
+                    .and(reconFileDtls.col("debitAmt").equalTo(merchantDtls.col("debitAmt"))),
+                "inner"
+            )
+            .select(reconFileDtls.col("rfdId"), reconFileDtls.col("atrnNum"), reconFileDtls.col("debitAmt"));
+
+        // Step 2: Get Duplicate Candidates (same atrnNum but different debitAmt)
+        Dataset<Row> joinedForDup = reconFileDtls
+            .join(merchantDtls, "atrnNum")
+            .filter(reconFileDtls.col("debitAmt").notEqual(merchantDtls.col("debitAmt")));
+
+        Dataset<Row> duplicateCounts = joinedForDup
+            .groupBy("atrnNum")
+            .count()
+            .filter("count > 1")
+            .select("atrnNum");
+
+        Dataset<Row> duplicates = joinedForDup
+            .join(duplicateCounts, "atrnNum")
+            .select(reconFileDtls.col("rfdId"), reconFileDtls.col("atrnNum"), reconFileDtls.col("debitAmt"))
+            .distinct();
+
+        // Step 3: Unmatched = not in matched and not in duplicates
+        Dataset<Row> matchedAndDupIds = matched
+            .union(duplicates)
+            .select("rfdId")
+            .distinct();
+
+        Dataset<Row> unmatched = reconFileDtls
+            .join(matchedAndDupIds, "rfdId", "left_anti");
+
+        // Final Outputs
+        System.out.println("== MATCHED ==");
+        matched.show();
+
+        System.out.println("== DUPLICATES ==");
+        duplicates.show();
+
+        System.out.println("== UNMATCHED ==");
+        unmatched.show();
+    }
+}
+
