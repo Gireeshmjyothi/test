@@ -1,12 +1,15 @@
-private void saveToReconciliationTable(Dataset<Row> dataset, String matchStatus, String reason) {
-    Dataset<Row> resultDataset = dataset.withColumn("match_status", functions.lit(matchStatus))
-            .withColumn("mismatch_reason", functions.lit(reason))
-            .withColumn("source_json", functions.to_json(structFromColumns(dataset.columns())))
-            .withColumn("recon_json", functions.to_json(structFromColumns(dataset.columns())))
-            // Convert timestamp and date to string to avoid java.lang.IllegalAccessError
-            .withColumn("reconciled_at", functions.date_format(functions.current_timestamp(), "yyyy-MM-dd HH:mm:ss"))
-            .withColumn("batch_date", functions.date_format(functions.current_date(), "yyyy-MM-dd"));
-
-    resultDataset.printSchema();
-    jdbcReaderService.writeToReconFileResult(resultDataset, "RECONCILIATION_RESULT");
-}
+org.apache.spark.sql.AnalysisException: [NUM_COLUMNS_MISMATCH] EXCEPT can only be performed on inputs with the same number of columns, but the first input has 19 columns and the second input has 3 columns.;
+'Except false
+:- Project [ATRN_NUM#63, RFD_ID#39, RFS_ID#40, ROW_NUMBER#41, RECORD_TYPE#42, DEBIT_AMT#76, PAYMENT_DATE#45, BANK_REF_NUMBER#46, PAYMENT_STATUS#47, RECON_STATUS#48, SETTLEMENT_STATUS#49, REMARK#50, MERCHANT_ID#6, SBI_ORDER_REF_NUMBER#7, ORDER_AMOUNT#8, DEBIT_AMT#21, TRANSACTION_STATUS#10, PAYMENT_STATUS#11, PAYMENT_SUCCESS_DATE#12]
+:   - Join Inner, (ATRN_NUM#63 = ATRN_NUM#30)
+:     :- SubqueryAlias recon
+:     :   - Project [RFD_ID#39, RFS_ID#40, ROW_NUMBER#41, RECORD_TYPE#42, ATRN_NUM#63, PAYMENT_AMOUNT#44 AS DEBIT_AMT#76, PAYMENT_DATE#45, BANK_REF_NUMBER#46, PAYMENT_STATUS#47, RECON_STATUS#48, SETTLEMENT_STATUS#49, REMARK#50]
+:     :      - SubqueryAlias tgt
+:     :         - Project [RFD_ID#39, RFS_ID#40, ROW_NUMBER#41, RECORD_TYPE#42, trim(ATRN_NUM#43, None) AS ATRN_NUM#63, PAYMENT_AMOUNT#44, PAYMENT_DATE#45, BANK_REF_NUMBER#46, PAYMENT_STATUS#47, RECON_STATUS#48, SETTLEMENT_STATUS#49, REMARK#50]
+:     :            - Relation [RFD_ID#39,RFS_ID#40,ROW_NUMBER#41,RECORD_TYPE#42,ATRN_NUM#43,PAYMENT_AMOUNT#44,PAYMENT_DATE#45,BANK_REF_NUMBER#46,PAYMENT_STATUS#47,RECON_STATUS#48,SETTLEMENT_STATUS#49,REMARK#50] JDBCRelation(RECON_FILE_DTLS) [numPartitions=1]
+:      - SubqueryAlias src
+:         - Project [trim(ATRN_NUM#5, None) AS ATRN_NUM#30, MERCHANT_ID#6, SBI_ORDER_REF_NUMBER#7, ORDER_AMOUNT#8, DEBIT_AMT#21, TRANSACTION_STATUS#10, PAYMENT_STATUS#11, PAYMENT_SUCCESS_DATE#12]
+:            - Project [ATRN_NUM#5, MERCHANT_ID#6, SBI_ORDER_REF_NUMBER#7, ORDER_AMOUNT#8, trim(cast(DEBIT_AMT#9 as string), None) AS DEBIT_AMT#21, TRANSACTION_STATUS#10, PAYMENT_STATUS#11, PAYMENT_SUCCESS_DATE#12]
+:               - Relation [ATRN_NUM#5,MERCHANT_ID#6,SBI_ORDER_REF_NUMBER#7,ORDER_AMOUNT#8,DEBIT_AMT#9,TRANSACTION_STATUS#10,PAYMENT_STATUS#11,PAYMENT_SUCCESS_DATE#12] JDBCRelation(MERCHANT_ORDER_PAYMENTS) [numPartitions=1]
+ - Project [RFD_ID#258, ATRN_NUM#279, DEBIT_AMT#278]
+    - Filter (row_num#228 = 1)
