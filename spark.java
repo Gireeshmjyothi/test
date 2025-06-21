@@ -1,15 +1,57 @@
-org.apache.spark.sql.AnalysisException: [NUM_COLUMNS_MISMATCH] EXCEPT can only be performed on inputs with the same number of columns, but the first input has 19 columns and the second input has 3 columns.;
-'Except false
-:- Project [ATRN_NUM#63, RFD_ID#39, RFS_ID#40, ROW_NUMBER#41, RECORD_TYPE#42, DEBIT_AMT#76, PAYMENT_DATE#45, BANK_REF_NUMBER#46, PAYMENT_STATUS#47, RECON_STATUS#48, SETTLEMENT_STATUS#49, REMARK#50, MERCHANT_ID#6, SBI_ORDER_REF_NUMBER#7, ORDER_AMOUNT#8, DEBIT_AMT#21, TRANSACTION_STATUS#10, PAYMENT_STATUS#11, PAYMENT_SUCCESS_DATE#12]
-:   - Join Inner, (ATRN_NUM#63 = ATRN_NUM#30)
-:     :- SubqueryAlias recon
-:     :   - Project [RFD_ID#39, RFS_ID#40, ROW_NUMBER#41, RECORD_TYPE#42, ATRN_NUM#63, PAYMENT_AMOUNT#44 AS DEBIT_AMT#76, PAYMENT_DATE#45, BANK_REF_NUMBER#46, PAYMENT_STATUS#47, RECON_STATUS#48, SETTLEMENT_STATUS#49, REMARK#50]
-:     :      - SubqueryAlias tgt
-:     :         - Project [RFD_ID#39, RFS_ID#40, ROW_NUMBER#41, RECORD_TYPE#42, trim(ATRN_NUM#43, None) AS ATRN_NUM#63, PAYMENT_AMOUNT#44, PAYMENT_DATE#45, BANK_REF_NUMBER#46, PAYMENT_STATUS#47, RECON_STATUS#48, SETTLEMENT_STATUS#49, REMARK#50]
-:     :            - Relation [RFD_ID#39,RFS_ID#40,ROW_NUMBER#41,RECORD_TYPE#42,ATRN_NUM#43,PAYMENT_AMOUNT#44,PAYMENT_DATE#45,BANK_REF_NUMBER#46,PAYMENT_STATUS#47,RECON_STATUS#48,SETTLEMENT_STATUS#49,REMARK#50] JDBCRelation(RECON_FILE_DTLS) [numPartitions=1]
-:      - SubqueryAlias src
-:         - Project [trim(ATRN_NUM#5, None) AS ATRN_NUM#30, MERCHANT_ID#6, SBI_ORDER_REF_NUMBER#7, ORDER_AMOUNT#8, DEBIT_AMT#21, TRANSACTION_STATUS#10, PAYMENT_STATUS#11, PAYMENT_SUCCESS_DATE#12]
-:            - Project [ATRN_NUM#5, MERCHANT_ID#6, SBI_ORDER_REF_NUMBER#7, ORDER_AMOUNT#8, trim(cast(DEBIT_AMT#9 as string), None) AS DEBIT_AMT#21, TRANSACTION_STATUS#10, PAYMENT_STATUS#11, PAYMENT_SUCCESS_DATE#12]
-:               - Relation [ATRN_NUM#5,MERCHANT_ID#6,SBI_ORDER_REF_NUMBER#7,ORDER_AMOUNT#8,DEBIT_AMT#9,TRANSACTION_STATUS#10,PAYMENT_STATUS#11,PAYMENT_SUCCESS_DATE#12] JDBCRelation(MERCHANT_ORDER_PAYMENTS) [numPartitions=1]
- - Project [RFD_ID#258, ATRN_NUM#279, DEBIT_AMT#278]
-    - Filter (row_num#228 = 1)
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+
+import static org.apache.spark.sql.functions.*;
+
+public class ReconProcessor {
+
+    public static void process(SparkSession spark, Dataset<Row> reconFileDtls, Dataset<Row> merchantDtls) {
+
+        // 1. ✅ Matched: Exact (atrnNum, debitAmt)
+        Dataset<Row> matched = reconFileDtls
+            .join(merchantDtls,
+                reconFileDtls.col("atrnNum").equalTo(merchantDtls.col("atrnNum"))
+                    .and(reconFileDtls.col("debitAmt").equalTo(merchantDtls.col("debitAmt"))),
+                "inner")
+            .select(reconFileDtls.col("*"))
+            .distinct();
+
+        // 2. 🔁 Duplicates: Same atrnNum, different debitAmt
+        Dataset<Row> matchedKeys = matched.select("atrnNum", "debitAmt").distinct();
+
+        // Remove matched rows from reconFileDtls to avoid duplication
+        Dataset<Row> unmatchedByKey = reconFileDtls
+            .join(matchedKeys,
+                reconFileDtls.col("atrnNum").equalTo(matchedKeys.col("atrnNum"))
+                    .and(reconFileDtls.col("debitAmt").equalTo(matchedKeys.col("debitAmt"))),
+                "left_anti");
+
+        // Now from the remaining, check if atrnNum exists in merchantDtls → duplicate
+        Dataset<Row> merchantAtrns = merchantDtls.select("atrnNum").distinct();
+
+        Dataset<Row> duplicates = unmatchedByKey
+            .join(merchantAtrns, "atrnNum") // If atrnNum matches but not debitAmt
+            .select(unmatchedByKey.col("*"))
+            .distinct();
+
+        // 3. ❌ Unmatched = not matched, not duplicate
+        Dataset<Row> matchedAndDupIds = matched
+            .select("rfdId")
+            .union(duplicates.select("rfdId"))
+            .distinct();
+
+        Dataset<Row> unmatched = reconFileDtls
+            .join(matchedAndDupIds, "rfdId", "left_anti");
+
+        // Final Outputs
+        System.out.println("✅ == MATCHED ==");
+        matched.show(false);
+
+        System.out.println("🔁 == DUPLICATES ==");
+        duplicates.show(false);
+
+        System.out.println("❌ == UNMATCHED ==");
+        unmatched.show(false);
+    }
+}
