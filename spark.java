@@ -1,5 +1,31 @@
-3812D7EF6004E574E0637C86B10ACA1D	36E1C2FDD6D7E221E0637C86B10A18AC	1	DEBIT	QWOozqgDQG	3	13-06-25	HfPuousJRD	SUCCESS	MATCHED	PENDING	OK
-3812D7EF6005E574E0637C86B10ACA1D	36E1C2FDD6D7E221E0637C86B10A18AC	2	DEBIT	gXlGTwWeyP	3	13-06-25	igrMDgyubH	SUCCESS	MATCHED	PENDING	Cleared
-3812D7EF6006E574E0637C86B10ACA1D	36E1C2FDD6D7E221E0637C86B10A18AC	1	CREDIT	sBKXbPJceD	3	13-06-25	dzhoPrHUYi	SUCCESS	UNMATCHED	PENDING	OK
-3812D7EF6007E574E0637C86B10ACA1D	36E1C2FDD6D7E221E0637C86B10A18AC	1	DEBIT	QWOozqgDQG	3	13-06-25	lPQFHYfFoz	SUCCESS	DUPLICATE	PENDING	OK
-3814D71FC7E77F83E0637C86B10A8716	36E1C2FDD6D7E221E0637C86B10A18AC	1	DEBIT	QWOozqgDQG	2	13-06-25	lPQFHYfFoz	SUCCESS	DUPLICATE	PENDING	OK
+// Step 1: Join on atrnNum + debitAmt
+Dataset<Row> potentialMatches = reconFileDtls.alias("r")
+        .join(merchantDtls.alias("m"),
+                col("r.atrnNum").equalTo(col("m.atrnNum"))
+                .and(col("r.debitAmt").equalTo(col("m.debitAmt"))),
+                "inner")
+        .select(col("r.rfdId"), col("r.atrnNum"), col("r.debitAmt"));
+
+// Step 2: Only keep first usage of each (atrnNum, debitAmt)
+WindowSpec matchWindow = Window.partitionBy("atrnNum", "debitAmt").orderBy("rfdId");
+
+Dataset<Row> rankedMatches = potentialMatches.withColumn("rank", row_number().over(matchWindow));
+
+Dataset<Row> matched = rankedMatches.filter(col("rank").equalTo(1)).drop("rank");
+
+// Step 3: All other entries with same atrnNum but not matched → duplicate
+Dataset<Row> sameAtrnJoin = reconFileDtls.alias("r")
+        .join(merchantDtls.alias("m"),
+                col("r.atrnNum").equalTo(col("m.atrnNum")),
+                "inner")
+        .select(col("r.rfdId"), col("r.atrnNum"), col("r.debitAmt"));
+
+// Step 4: Duplicates = same atrnNum join - matched
+Dataset<Row> duplicates = sameAtrnJoin
+        .join(matched.select("rfdId"), "rfdId", "left_anti");
+
+// Step 5: Unmatched = reconFileDtls - (matched + duplicates)
+Dataset<Row> matchedAndDuplicates = matched.union(duplicates).select("rfdId");
+
+Dataset<Row> unmatched = reconFileDtls
+        .join(matchedAndDuplicates, "rfdId", "left_anti");
