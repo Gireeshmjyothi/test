@@ -1,77 +1,65 @@
-public void reconProcess(String rfsId) {
-        logger.info("Recon process started.");
-        long processStartTime = currentTimeMillis();
-        logger.info("🚀 Recon process started at : {} ", sparkService.formatMillis(processStartTime));
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+import static org.apache.spark.sql.functions.*;
+import org.apache.spark.sql.expressions.Window;
+import org.apache.spark.sql.expressions.WindowSpec;
 
-        // Load datasets
-        logger.info("🚀 fetch merchant order payments starts : {} ", currentTimeMillis());
-        long localStartTime = currentTimeMillis();
-        Dataset<Row> merchantOrderPayments = readAndNormalize("MERCHANT_ORDER_PAYMENTS", "CREATED_DATE", 1726138792000L, 1726138792000L).alias("src");
-        logger.info("🚀 fetch merchant order payments ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+public class ReconProcessor {
 
-        logger.info("🚀 fetch recon file details starts : {}", currentTimeMillis());
-        localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDtls = readAndNormalize("RECON_FILE_DTLS", "PAYMENT_DATE", 1726138792000L, 1726138792000L).alias("tgt");
-        logger.info("🚀 fetch recon file details ends : {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+    public static void process(SparkSession spark, Dataset<Row> reconFileDtls, Dataset<Row> merchantDtls) {
+        // Step 1: Join recon with merchant on atrnNum and debitAmt (exact match)
+        Dataset<Row> exactMatch = reconFileDtls
+            .join(merchantDtls,
+                reconFileDtls.col("atrnNum").equalTo(merchantDtls.col("atrnNum"))
+                    .and(reconFileDtls.col("debitAmt").equalTo(merchantDtls.col("debitAmt"))),
+                "inner"
+            )
+            .select(reconFileDtls.col("rfdId"), reconFileDtls.col("atrnNum"), reconFileDtls.col("debitAmt"));
 
-        // Rename recon file columns to match source
-        reconFileDtls = renameColumns(reconFileDtls).alias("recon");
+        // Step 2: Deduplicate exact matches — keep only first match per (atrnNum, debitAmt)
+        WindowSpec matchWindow = Window.partitionBy("atrnNum", "debitAmt").orderBy("rfdId");
 
-        // Join and match logic
-        Column joinCond = reconFileDtls.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
-                .and(reconFileDtls.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
+        Dataset<Row> exactMatchWithRow = exactMatch.withColumn("row_num", row_number().over(matchWindow));
 
-        Column valueMatch = joinCond;
-        for (String col : columnMapping().keySet()) {
-            valueMatch = valueMatch.and(reconFileDtls.col(col).equalTo(merchantOrderPayments.col(col)));
-        }
+        Dataset<Row> matched = exactMatchWithRow
+            .filter(col("row_num").equalTo(1))
+            .drop("row_num");
 
-        //Filter only unique ATRN_NUMs from reconFileDtls
-        Dataset<Row> reconUnique = reconFileDtls.groupBy("ATRN_NUM")
-                .count()
-                .filter("count = 1")
-                .select("ATRN_NUM");
+        Dataset<Row> extraMatches = exactMatchWithRow
+            .filter(col("row_num").gt(1))
+            .drop("row_num");
 
-        Dataset<Row> filteredRecon = reconFileDtls.join(reconUnique, "ATRN_NUM");
+        // Step 3: Get all reconFileDtls that have atrnNum in merchant (partial match)
+        Dataset<Row> partialMatches = reconFileDtls
+            .join(merchantDtls, "atrnNum");
 
-        //Join unique-only records to find matched ones
-        Column matchCondition = filteredRecon.col("ATRN_NUM").equalTo(merchantOrderPayments.col("ATRN_NUM"))
-                .and(filteredRecon.col("DEBIT_AMT").equalTo(merchantOrderPayments.col("DEBIT_AMT")));
+        // Step 4: Mark duplicates: 
+        // - extra exact matches (from step 2)
+        // - or same atrnNum but different debitAmt (excluding matched ones)
+        Dataset<Row> remainingPartialDupes = partialMatches
+            .except(matched)
+            .except(extraMatches);
 
-        // Matched rows
-        logger.info("🚀 Fetch matched data starts: {}", currentTimeMillis());
-        localStartTime = currentTimeMillis();
-        Dataset<Row> matched = filteredRecon
-                .join(merchantOrderPayments, matchCondition, "inner")
-                .dropDuplicates("ATRN_NUM");
-        logger.info("🚀 Fetch matched data ends at: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> duplicates = extraMatches
+            .union(remainingPartialDupes)
+            .select("rfdId", "atrnNum", "debitAmt")
+            .distinct();
 
-        // Unmatched rows from reconFileDtls not in merchantOrderPayments
-        logger.info("🚀 Fetch unmatched data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        Dataset<Row> unmatched = reconFileDtls.join(merchantOrderPayments, joinCond, "left_anti").distinct();
-        logger.info("🚀 Fetch unmatched data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        // Step 5: Unmatched = not in matched or duplicate
+        Dataset<Row> allHandledIds = matched.union(duplicates).select("rfdId").distinct();
 
-        // Duplicates in reconFileDtls
-        logger.info("🚀 Fetch duplicate data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        Dataset<Row> reconFileDetailDuplicate = getDuplicates(reconFileDtls, "ATRN_NUM");
-        logger.info("🚀 Fetch duplicate data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        Dataset<Row> unmatched = reconFileDtls
+            .join(allHandledIds, "rfdId", "left_anti");
 
-        // Update match_status back in RECON_FILE_DTLS
-        logger.info("🚀 Update process data starts: {}", sparkService.formatMillis(currentTimeMillis()));
-        localStartTime = currentTimeMillis();
-        /*updateReconFileDetails(matched, "MATCHED");
-        updateReconFileDetails(unmatched, "UNMATCHED");
-        updateReconFileDetails(reconFileDetailDuplicate, "DUPLICATE");*/
-        matched.printSchema();
-        matched.col("RFD_ID");
-        jdbcReaderService.stageReconStatus(matched, "MATCHED");
-        jdbcReaderService.stageReconStatus(unmatched, "UNMATCHED");
-        jdbcReaderService.stageReconStatus(reconFileDetailDuplicate, "DUPLICATE");
-        jdbcReaderService.updateReconFromStage();
-        jdbcReaderService.clearStageTable();
-        logger.info("🚀 Update process data ends: {}", sparkService.formatMillis(currentTimeMillis() - localStartTime));
+        // OUTPUT
+        System.out.println("✅ Matched:");
+        matched.show(false);
 
-        logger.info("Recon process completed in: {}", sparkService.formatMillis(currentTimeMillis() - processStartTime));
+        System.out.println("🔁 Duplicates:");
+        duplicates.show(false);
+
+        System.out.println("❌ Unmatched:");
+        unmatched.show(false);
     }
+}
