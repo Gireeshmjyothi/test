@@ -1,31 +1,47 @@
-// Step 1: Join on atrnNum + debitAmt
-Dataset<Row> potentialMatches = reconFileDtls.alias("r")
-        .join(merchantDtls.alias("m"),
-                col("r.atrnNum").equalTo(col("m.atrnNum"))
-                .and(col("r.debitAmt").equalTo(col("m.debitAmt"))),
-                "inner")
-        .select(col("r.rfdId"), col("r.atrnNum"), col("r.debitAmt"));
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.expressions.Window;
+import static org.apache.spark.sql.functions.*;
 
-// Step 2: Only keep first usage of each (atrnNum, debitAmt)
-WindowSpec matchWindow = Window.partitionBy("atrnNum", "debitAmt").orderBy("rfdId");
+public class ReconProcessor {
 
-Dataset<Row> rankedMatches = potentialMatches.withColumn("rank", row_number().over(matchWindow));
+    public static void process(SparkSession spark, Dataset<Row> reconFileDtls, Dataset<Row> merchantDtls) {
+        // STEP 1: Add row_number for MATCHED prioritization
+        Dataset<Row> joinedMatched = reconFileDtls
+            .join(merchantDtls, reconFileDtls.col("atrnNum").equalTo(merchantDtls.col("atrnNum"))
+                    .and(reconFileDtls.col("debitAmt").equalTo(merchantDtls.col("debitAmt"))),
+                "left_outer"
+            )
+            .withColumn("matchFlag", when(merchantDtls.col("atrnNum").isNotNull(), lit(1)).otherwise(lit(0)));
 
-Dataset<Row> matched = rankedMatches.filter(col("rank").equalTo(1)).drop("rank");
+        // STEP 2: Rank matched rows so only one is MATCHED, rest go to DUPLICATE
+        WindowSpec matchRankWindow = Window.partitionBy("atrnNum", "debitAmt").orderBy("rfdId");
 
-// Step 3: All other entries with same atrnNum but not matched → duplicate
-Dataset<Row> sameAtrnJoin = reconFileDtls.alias("r")
-        .join(merchantDtls.alias("m"),
-                col("r.atrnNum").equalTo(col("m.atrnNum")),
-                "inner")
-        .select(col("r.rfdId"), col("r.atrnNum"), col("r.debitAmt"));
+        Dataset<Row> ranked = joinedMatched
+            .withColumn("match_rank", when(col("matchFlag").equalTo(1), row_number().over(matchRankWindow)));
 
-// Step 4: Duplicates = same atrnNum join - matched
-Dataset<Row> duplicates = sameAtrnJoin
-        .join(matched.select("rfdId"), "rfdId", "left_anti");
+        // STEP 3: Classify
+        Dataset<Row> classified = ranked.withColumn("status",
+            when(col("matchFlag").equalTo(1).and(col("match_rank").equalTo(1)), lit("MATCHED"))
+            .when(col("matchFlag").equalTo(1).and(col("match_rank").gt(1)), lit("DUPLICATE"))
+            .when(col("matchFlag").equalTo(0), lit("UNMATCHED"))
+        );
 
-// Step 5: Unmatched = reconFileDtls - (matched + duplicates)
-Dataset<Row> matchedAndDuplicates = matched.union(duplicates).select("rfdId");
+        // STEP 4: Select final columns
+        Dataset<Row> result = classified.select(
+            col("rfdId"),
+            col("atrnNum"),
+            col("debitAmt"),
+            col("status")
+        );
 
-Dataset<Row> unmatched = reconFileDtls
-        .join(matchedAndDuplicates, "rfdId", "left_anti");
+        // Output categorized data
+        System.out.println("== ✅ MATCHED ==");
+        result.filter(col("status").equalTo("MATCHED")).show();
+
+        System.out.println("== 🔁 DUPLICATES ==");
+        result.filter(col("status").equalTo("DUPLICATE")).show();
+
+        System.out.println("== ❌ UNMATCHED ==");
+        result.filter(col("status").equalTo("UNMATCHED")).show();
+    }
+}
