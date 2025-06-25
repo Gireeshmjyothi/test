@@ -1,2 +1,6 @@
-SELECT m.*,r.RFS_ID FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r
-WHERE m.ATRN_NUM=r.ATRN_NUM AND r.RFS_ID='36E1C2FDD6D7E221E0637C86B10A18A1';
+// Step-6: Prepare final dataset for staging update.
+            logger.info("Step-6: Merging all status-tagged datasets for staging.");
+            Dataset<Row> finalReconStatusUpdate = matched
+                    .select(RFD_ID, RECON_STATUS)
+                    .union(unmatched.select(RFD_ID, RECON_STATUS))
+                    .union(duplicate.select(RFD_ID, RECON_STATUS));
