@@ -1,42 +1,46 @@
-INSERT INTO RECON_FILE_SUMMARY (
-    RFS_ID,
-    CONFIG_ID,
-    SFTP_PATH,
-    S3_PATH,
-    FILE_NAME,
-    BANK_ID,
-    FILE_RECEIVED_TIME,
-    FILE_UPLOAD_TIME,
-    TOTAL_RECORDS,
-    TOTAL_AMOUNT,
-    PARSING_STATUS,
-    MATCHED_RECORDS,
-    UNMATCHED_RECORDS,
-    DUPLICATE_RECORDS,
-    RECON_STATUS,
-    RECON_TIME,
-    SETTLEMENT_STATUS,
-    SETTLEMENT_TIME,
-    REMARK
-)
-VALUES (
-    HEXTORAW('1234567890ABCDEF1234567890ABCDEF'), -- RFS_ID as UUID (16-byte hex)
-    HEXTORAW('FEDCBA0987654321FEDCBA0987654321'), -- CONFIG_ID as UUID (16-byte hex)
-    '/path/to/sftp/file.csv',
-    's3://bucket-name/path/to/file.csv',
-    'file.csv',
-    101, -- BANK_ID
-    TO_TIMESTAMP('2024-05-30 10:30:00', 'YYYY-MM-DD HH24:MI:SS'),
-    TO_TIMESTAMP('2024-05-30 10:45:00', 'YYYY-MM-DD HH24:MI:SS'),
-    1000, -- TOTAL_RECORDS
-    500000.75, -- TOTAL_AMOUNT
-    'SUCCESS',
-    '950',
-    '45',
-    '5',
-    'RECONCILED',
-    TO_TIMESTAMP('2024-05-30 11:00:00', 'YYYY-MM-DD HH24:MI:SS'),
-    'SETTLED',
-    TO_TIMESTAMP('2024-05-30 12:00:00', 'YYYY-MM-DD HH24:MI:SS'),
-    'All records processed successfully.'
-);
+private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<Row> transactionDataset) {
+    logger.info("Starting classification of recon data...");
+
+    // Step 1: Join recon and transaction on atrnNum and debitAmt to find exact matches
+    Dataset<Row> reconWithTxMatch = reconFileDataset
+            .join(transactionDataset,
+                    reconFileDataset.col(ATRN_NUM).equalTo(transactionDataset.col(ATRN_NUM))
+                            .and(reconFileDataset.col(DEBIT_AMT).equalTo(transactionDataset.col(DEBIT_AMT))),
+                    "left"
+            )
+            .withColumn("isMatched", transactionDataset.col(ATRN_NUM).isNotNull());
+
+    // Step 2: Mark matched rows
+    Dataset<Row> matched = reconWithTxMatch
+            .filter(col("isMatched").equalTo(true))
+            .drop("isMatched")
+            .withColumn(RECON_STATUS_FIELD, lit(RECON_STATUS_MATCHED));
+
+    // Step 3: Identify unmatched/duplicate (where atrnNum exists in transaction, but debitAmt differs OR not in transaction)
+    Dataset<Row> remaining = reconFileDataset
+            .join(matched.select(ATRN_NUM, DEBIT_AMT), 
+                  reconFileDataset.col(ATRN_NUM).equalTo(matched.col(ATRN_NUM))
+                  .and(reconFileDataset.col(DEBIT_AMT).equalTo(matched.col(DEBIT_AMT))),
+                  "leftanti");
+
+    // Step 4: Apply row_number partitioned by atrnNum to tag first occurrence as unmatched, rest as duplicates
+    WindowSpec dupWindow = Window.partitionBy(ATRN_NUM).orderBy(DEBIT_AMT); // can use any column to order
+
+    Dataset<Row> remainingWithFlags = remaining
+            .withColumn("row_num", row_number().over(dupWindow))
+            .withColumn(RECON_STATUS_FIELD,
+                    when(col("row_num").equalTo(1), lit(RECON_STATUS_UNMATCHED))
+                            .otherwise(lit(RECON_STATUS_DUPLICATE))
+            )
+            .drop("row_num");
+
+    // Step 5: Combine matched + remainingWithFlags
+    Dataset<Row> finalDataset = matched.unionByName(remainingWithFlags);
+
+    // Return matched, duplicate, unmatched
+    return new Dataset[]{
+            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_MATCHED)),
+            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_DUPLICATE)),
+            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_UNMATCHED))
+    };
+}
