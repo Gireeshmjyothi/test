@@ -1,19 +1,7 @@
-Error : 904, Position : 22, SQL = SELECT * FROM (SELECT m FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r WHERE r.ATRN_NUM = m.ATRN_NUM AND r.RFS_ID = HEXTORAW('1A6CF13CDF224845A15AF740E2716015')) filtered_transaction_data WHERE 1=0, Original SQL = SELECT * FROM (SELECT m FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r WHERE r.ATRN_NUM = m.ATRN_NUM AND r.RFS_ID = HEXTORAW('1A6CF13CDF224845A15AF740E2716015')) filtered_transaction_data WHERE 1=0, Error Message = ORA-00904: "M": invalid identifier
-	
-/**
-     * This method is used to read data from jdbc by query and filter.
-     *
-     * @param query table name.
-     * @return dataset.
-     */
-    public Dataset<Row> readFromDBWithFilter(String query) {
-
-        return sparkSession.read()
-                .format("jdbc")
-                .option("url", jdbcConfig.getJdbcUrl())
-                .option("driver", jdbcDriver)
-                .option("dbtable", query)
-                .option("user", jdbcUserName)
-                .option("password", jdbcPassword)
-                .load();
-    }
+// Step-6: Prepare final dataset for staging update.
+            logger.info("Step-6: Merging all status-tagged datasets for staging.");
+            Dataset<Row> finalReconStatusUpdate = matched
+                    .select(RFD_ID, RECON_STATUS)
+                    .union(unmatched.select(RFD_ID, RECON_STATUS))
+                    .union(duplicate.select(RFD_ID, RECON_STATUS))
+                    .withColumn("SESSION_ID", lit(UUID.randomUUID().toString()));
