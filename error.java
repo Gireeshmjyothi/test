@@ -1,6 +1,53 @@
-// Step-6: Prepare final dataset for staging update.
-            logger.info("Step-6: Merging all status-tagged datasets for staging.");
-            Dataset<Row> finalReconStatusUpdate = matched
-                    .select(RFD_ID, RECON_STATUS)
-                    .union(unmatched.select(RFD_ID, RECON_STATUS))
-                    .union(duplicate.select(RFD_ID, RECON_STATUS));
+public static String buildQueryForTransaction(UUID rfsId){
+        return String.format("(SELECT m FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r WHERE r.ATRN_NUM = m.ATRN_NUM AND r.RFS_ID = %s) filtered_transaction_data", rfsId);
+    }
+
+https://docs.oracle.com/error-help/db/ora-00907/
+java.sql.SQLSyntaxErrorException: ORA-00907: missing right parenthesis
+
+https://docs.oracle.com/error-help/db/ora-00907/
+	at oracle.jdbc.driver.T4CTTIoer11.processError(T4CTTIoer11.java:709)
+	at oracle.jdbc.driver.T4CTTIoer11.processError(T4CTTIoer11.java:609)
+	at oracle.jdbc.driver.T4C8Oall.processError(T4C8Oall.java:1347)
+	at oracle.jdbc.driver.T4CTTIfun.receive(T4CTTIfun.java:1100)
+	at oracle.jdbc.driver.T4CTTIfun.doRPC(T4CTTIfun.java:408)
+	at oracle.jdbc.driver.T4C8Oall.doOALL(T4C8Oall.java:499)
+	at oracle.jdbc.driver.T4CPreparedStatement.doOall8(T4CPreparedStatement.java:274)
+	at oracle.jdbc.driver.T4CPreparedStatement.executeForDescribe(T4CPreparedStatement.java:1231)
+	at oracle.jdbc.driver.OracleStatement.prepareDefineBufferAndExecute(OracleStatement.java:1412)
+	at oracle.jdbc.driver.OracleStatement.executeMaybeDescribe(OracleStatement.java:1286)
+	at oracle.jdbc.driver.OracleStatement.executeSQLSelect(OracleStatement.java:1843)
+	at oracle.jdbc.driver.OracleStatement.doExecuteWithTimeout(OracleStatement.java:1619)
+	at oracle.jdbc.driver.OraclePreparedStatement.executeInternal(OraclePreparedStatement.java:3955)
+	at oracle.jdbc.driver.OraclePreparedStatement.executeQuery(OraclePreparedStatement.java:4142)
+	at oracle.jdbc.driver.OraclePreparedStatementWrapper.executeQuery(OraclePreparedStatementWrapper.java:1103)
+	at org.apache.spark.sql.execution.datasources.jdbc.JDBCRDD$.getQueryOutputSchema(JDBCRDD.scala:68)
+	at org.apache.spark.sql.execution.datasources.jdbc.JDBCRDD$.resolveTable(JDBCRDD.scala:58)
+	at org.apache.spark.sql.execution.datasources.jdbc.JDBCRelation$.getSchema(JDBCRelation.scala:241)
+	at org.apache.spark.sql.execution.datasources.jdbc.JdbcRelationProvider.createRelation(JdbcRelationProvider.scala:37)
+	at org.apache.spark.sql.execution.datasources.DataSource.resolveRelation(DataSource.scala:346)
+	at org.apache.spark.sql.DataFrameReader.loadV1Source(DataFrameReader.scala:229)
+	at org.apache.spark.sql.DataFrameReader.$anonfun$load$2(DataFrameReader.scala:211)
+	at scala.Option.getOrElse(Option.scala:189)
+	at org.apache.spark.sql.DataFrameReader.load(DataFrameReader.scala:211)
+	at org.apache.spark.sql.DataFrameReader.load(DataFrameReader.scala:172)
+	at com.epay.rns.service.JdbcReaderService.readFromDBWithFilter(JdbcReaderService.java:85)
+	at com.epay.rns.dao.ReconProcessDao.readAndNormalizeTransaction(ReconProcessDao.java:48)
+	at com.epay.rns.service.ReconService.reconProcess(ReconService.java:69)
+	at com.epay.rns.scheduler.ReconProcessScheduler.runReconProcessScheduler(ReconProcessScheduler.java:49)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.runInternal(ScheduledMethodRunnable.java:130)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.lambda$run$2(ScheduledMethodRunnable.java:124)
+	at io.micrometer.observation.Observation.observe(Observation.java:499)
+	at org.springframework.scheduling.support.ScheduledMethodRunnable.run(ScheduledMethodRunnable.java:124)
+	at org.springframework.scheduling.support.DelegatingErrorHandlingRunnable.run(DelegatingErrorHandlingRunnable.java:54)
+	at org.springframework.scheduling.concurrent.ReschedulingRunnable.run(ReschedulingRunnable.java:96)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:572)
+	at java.base/java.util.concurrent.FutureTask.run$$$capture(FutureTask.java:317)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java)
+	at java.base/java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:304)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1583)
+Caused by: oracle.jdbc.OracleDatabaseException: ORA-00907: missing right parenthesis
