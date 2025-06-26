@@ -1,6 +1,8 @@
 /**
-     * This method is used to truncate stage table.
-     */
-    public void clearStageTable() {
-        jdbcTemplate.update("TRUNCATE TABLE RECON_STATUS_STAGE");
-    }
+ * This method deletes data from RECON_STATUS_STAGE table by rfsId.
+ *
+ * @param rfsId the identifier to delete records by
+ */
+public void clearStageTableByRfsId(String rfsId) {
+    jdbcTemplate.update("DELETE FROM RECON_STATUS_STAGE WHERE rfs_id = ?", rfsId);
+}
