@@ -11,19 +11,19 @@ private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<
                     col("recon.ATRN_NUM").equalTo(col("txn.ATRN_NUM"))
                             .and(col("recon.DEBIT_AMT").equalTo(col("txn.DEBIT_AMT"))),
                     "inner")
-            .select(col("recon.ATRN_NUM"), col("recon.DEBIT_AMT"))  // Avoid carrying txn columns
-            .withColumn("RECON_STATUS", lit("MATCHED"))
-            .alias("matched");
+            .drop(txn.col("ATRN_NUM"))  // Avoid duplicate columns
+            .drop(txn.col("DEBIT_AMT")) // If needed
+            .withColumn("RECON_STATUS", lit("MATCHED"));
 
     // Step 2: Get unmatched + duplicate candidates by excluding matched rows
     Dataset<Row> unmatchedOrDuplicate = recon
-            .join(matched,
+            .join(matched.select("ATRN_NUM", "DEBIT_AMT"),
                     col("recon.ATRN_NUM").equalTo(col("matched.ATRN_NUM"))
                             .and(col("recon.DEBIT_AMT").equalTo(col("matched.DEBIT_AMT"))),
                     "left_anti");
 
     // Step 3: Use row_number to mark first unmatched, others as duplicates
-    WindowSpec windowSpec = Window.partitionBy("ATRN_NUM").orderBy("DEBIT_AMT");
+    WindowSpec windowSpec = Window.partitionBy("ATRN_NUM", "DEBIT_AMT").orderBy("DEBIT_AMT");
 
     Dataset<Row> unmatchedAndDuplicateLabeled = unmatchedOrDuplicate
             .withColumn("row_num", row_number().over(windowSpec))
@@ -31,7 +31,7 @@ private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<
                     .otherwise(lit("DUPLICATE")))
             .drop("row_num");
 
-    // Step 4: Combine final results
+    // Step 4: Combine final results (ensure same schema)
     Dataset<Row> finalDataset = matched.unionByName(unmatchedAndDuplicateLabeled);
 
     // Step 5: Return split datasets
@@ -41,5 +41,3 @@ private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<
             finalDataset.filter(col("RECON_STATUS").equalTo("UNMATCHED"))
     };
 }
-
-[NUM_COLUMNS_MISMATCH] UNION can only be performed on inputs with the same number of columns, but the first input has 3 columns and the second input has 12 columns.
