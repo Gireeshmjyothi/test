@@ -41,3 +41,5 @@ private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<
             finalDataset.filter(col("RECON_STATUS").equalTo("UNMATCHED"))
     };
 }
+
+[NUM_COLUMNS_MISMATCH] UNION can only be performed on inputs with the same number of columns, but the first input has 3 columns and the second input has 12 columns.
