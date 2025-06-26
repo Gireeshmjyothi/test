@@ -1,53 +1,43 @@
 private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<Row> transactionDataset) {
     logger.info("Starting classification of recon data...");
 
-    // Step 0: Add aliases to both datasets
+    // Apply aliases
     Dataset<Row> recon = reconFileDataset.alias("recon");
     Dataset<Row> txn = transactionDataset.alias("txn");
 
-    // Step 1: Join recon and transaction on atrnNum and debitAmt to find exact matches
-    Dataset<Row> reconWithTxMatch = recon
+    // Step 1: Find matched records (exact match on ATRN_NUM + DEBIT_AMT)
+    Dataset<Row> matched = recon
             .join(txn,
-                    recon.col(ATRN_NUM).equalTo(txn.col(ATRN_NUM))
-                            .and(recon.col(DEBIT_AMT).equalTo(txn.col(DEBIT_AMT))),
-                    "left"
-            )
-            .withColumn("isMatched", txn.col(ATRN_NUM).isNotNull());
+                    col("recon.ATRN_NUM").equalTo(col("txn.ATRN_NUM"))
+                            .and(col("recon.DEBIT_AMT").equalTo(col("txn.DEBIT_AMT"))),
+                    "inner")
+            .select(col("recon.ATRN_NUM"), col("recon.DEBIT_AMT"))  // Avoid carrying txn columns
+            .withColumn("RECON_STATUS", lit("MATCHED"))
+            .alias("matched");
 
-    // Step 2: Mark matched rows (we only keep recon columns to avoid duplication)
-    Dataset<Row> matched = reconWithTxMatch
-            .filter(col("isMatched").equalTo(true))
-            .drop("isMatched")
-            .select("recon.*")
-            .withColumn(RECON_STATUS_FIELD, lit(RECON_STATUS_MATCHED));
+    // Step 2: Get unmatched + duplicate candidates by excluding matched rows
+    Dataset<Row> unmatchedOrDuplicate = recon
+            .join(matched,
+                    col("recon.ATRN_NUM").equalTo(col("matched.ATRN_NUM"))
+                            .and(col("recon.DEBIT_AMT").equalTo(col("matched.DEBIT_AMT"))),
+                    "left_anti");
 
-    // Step 3: Identify unmatched/duplicate (where atrnNum exists in transaction, but debitAmt differs OR not in transaction)
-    Dataset<Row> remaining = recon
-            .join(
-                    matched.select(col(ATRN_NUM), col(DEBIT_AMT)),
-                    recon.col(ATRN_NUM).equalTo(matched.col(ATRN_NUM))
-                            .and(recon.col(DEBIT_AMT).equalTo(matched.col(DEBIT_AMT))),
-                    "leftanti"
-            );
+    // Step 3: Use row_number to mark first unmatched, others as duplicates
+    WindowSpec windowSpec = Window.partitionBy("ATRN_NUM").orderBy("DEBIT_AMT");
 
-    // Step 4: Apply row_number partitioned by atrnNum to tag first occurrence as unmatched, rest as duplicates
-    WindowSpec dupWindow = Window.partitionBy(recon.col(ATRN_NUM)).orderBy(recon.col(DEBIT_AMT));
-
-    Dataset<Row> remainingWithFlags = remaining
-            .withColumn("row_num", row_number().over(dupWindow))
-            .withColumn(RECON_STATUS_FIELD,
-                    when(col("row_num").equalTo(1), lit(RECON_STATUS_UNMATCHED))
-                            .otherwise(lit(RECON_STATUS_DUPLICATE))
-            )
+    Dataset<Row> unmatchedAndDuplicateLabeled = unmatchedOrDuplicate
+            .withColumn("row_num", row_number().over(windowSpec))
+            .withColumn("RECON_STATUS", when(col("row_num").equalTo(1), lit("UNMATCHED"))
+                    .otherwise(lit("DUPLICATE")))
             .drop("row_num");
 
-    // Step 5: Combine matched + remainingWithFlags
-    Dataset<Row> finalDataset = matched.unionByName(remainingWithFlags);
+    // Step 4: Combine final results
+    Dataset<Row> finalDataset = matched.unionByName(unmatchedAndDuplicateLabeled);
 
-    // Return matched, duplicate, unmatched
+    // Step 5: Return split datasets
     return new Dataset[]{
-            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_MATCHED)),
-            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_DUPLICATE)),
-            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_UNMATCHED))
+            finalDataset.filter(col("RECON_STATUS").equalTo("MATCHED")),
+            finalDataset.filter(col("RECON_STATUS").equalTo("DUPLICATE")),
+            finalDataset.filter(col("RECON_STATUS").equalTo("UNMATCHED"))
     };
 }
