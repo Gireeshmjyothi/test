@@ -11,8 +11,7 @@ private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<
                     col("recon.ATRN_NUM").equalTo(col("txn.ATRN_NUM"))
                             .and(col("recon.DEBIT_AMT").equalTo(col("txn.DEBIT_AMT"))),
                     "inner")
-            .drop(txn.col("ATRN_NUM"))  // Avoid duplicate columns
-            .drop(txn.col("DEBIT_AMT")) // If needed
+            .select("recon.*")  // select only recon columns to avoid column mismatch
             .withColumn("RECON_STATUS", lit("MATCHED"));
 
     // Step 2: Get unmatched + duplicate candidates by excluding matched rows
@@ -31,7 +30,7 @@ private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<
                     .otherwise(lit("DUPLICATE")))
             .drop("row_num");
 
-    // Step 4: Combine final results (ensure same schema)
+    // Step 4: Combine final results (both datasets have same schema now)
     Dataset<Row> finalDataset = matched.unionByName(unmatchedAndDuplicateLabeled);
 
     // Step 5: Return split datasets
