@@ -1,18 +1,18 @@
-CREATE TABLE BANK_FILE_CONFIG (
-    ID                  VARCHAR2(36) PRIMARY KEY,
-    BANK_ID             NUMBER,
-    SFTP_PATH           VARCHAR2(255),
-    FILE_TYPE           VARCHAR2(10),
-    FILE_DELIMITER      VARCHAR2(10),
-    FILE_HEADER_ROW     NUMBER,
-    FILE_HEADER         VARCHAR2(1000),
-    FILE_HEADER_MAP     VARCHAR2(2000),
-    FILE_READ_FROM      NUMBER,
-    FILE_HASH_ROW       NUMBER,
-    FILE_HASH_HEADER    VARCHAR2(500),
-    FILE_SUMMARY_ROW    NUMBER,
-    FILE_SUMMARY_HEADER VARCHAR2(500),
-    FILE_ENCRYPTED      VARCHAR2(50),
-    FILE_ENC_LEVEL      VARCHAR2(100),
-    FILE_ENC_KEY        VARCHAR2(255)
-);
+Certainly! Here's the updated version without the word "urgent":
+
+
+---
+
+Subject: Request Regarding Workspace Change
+
+Dear [Manager's Name],
+
+I’ve been working from my current setup for the past six months without any issues, so I was a bit surprised by the sudden change in seating.
+
+I’d prefer to continue here and will ensure my tasks are completed on time. If needed, I can switch to the new place the next day.
+
+Thanks for your understanding.
+
+Best regards,
+[Your Name]
+
