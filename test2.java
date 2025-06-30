@@ -1,21 +1,15 @@
-// Step 4: Tagging matched status using ATRN_NUM presence and match_rank
-        Dataset<Row> withMatchedFlag = joined
-                .join(matchedAtrns, col("recon.ATRN_NUM").equalTo(col("MATCHED_ATRN")), "left_outer")
-                .withColumn("isAtrnMatched", col("MATCHED_ATRN").isNotNull());
+Dataset<Row> matchedAtrns = reconFileDataset.alias("recon")
+    .join(transactionDataset.alias("txn"),
+          col("recon.ATRN_NUM").equalTo(col("txn.ATRN_NUM"))
+              .and(col("recon.DEBIT_AMT").equalTo(col("txn.DEBIT_AMT"))),
+          "inner")
+    .select(col("recon.ATRN_NUM").alias("MATCHED_ATRN"),
+            col("recon.DEBIT_AMT").alias("MATCHED_DEBIT_AMT"),
+            functions.row_number().over(Window.partitionBy("recon.ATRN_NUM").orderBy(/* your logic */)).alias("match_rank"));
 
-        withMatchedFlag.show(false);
-
-
-
-
--------------------------------------------------+-------------------------------------------------+------------+-----------+----------+---------+-------------------+---------------+--------------+------------+-----------------+-------+----------+-----------+--------------------+------------+---------+------------------+--------------+--------------------+----------+----------+------------+-------------+
-|RFD_ID                                           |RFS_ID                                           |ROW_NUMBER  |RECORD_TYPE|ATRN_NUM  |DEBIT_AMT|PAYMENT_DATE       |BANK_REF_NUMBER|PAYMENT_STATUS|RECON_STATUS|SETTLEMENT_STATUS|REMARK |ATRN_NUM  |MERCHANT_ID|SBI_ORDER_REF_NUMBER|ORDER_AMOUNT|DEBIT_AMT|TRANSACTION_STATUS|PAYMENT_STATUS|PAYMENT_SUCCESS_DATE|exactMatch|match_rank|MATCHED_ATRN|isAtrnMatched|
-+-------------------------------------------------+-------------------------------------------------+------------+-----------+----------+---------+-------------------+---------------+--------------+------------+-----------------+-------+----------+-----------+--------------------+------------+---------+------------------+--------------+--------------------+----------+----------+------------+-------------+
-|[38 C8 66 D4 2E 78 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|2.0000000000|CREDIT     |MbvHejhTUX|3.00     |2025-06-13 00:00:00|zTVkMhVtgn     |SUCCESS       |UNMATCHED   |PENDING          |Cleared|NULL      |NULL       |NULL                |NULL        |NULL     |NULL              |NULL          |NULL                |0         |NULL      |NULL        |false        |
-|[38 C8 66 D4 2E 79 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|1.0000000000|DEBIT      |UAoHUrJQXz|2.00     |2025-06-13 00:00:00|jOkGPlbrKr     |SUCCESS       |DUPLICATE   |PENDING          |OK     |NULL      |NULL       |NULL                |NULL        |NULL     |NULL              |NULL          |NULL                |0         |NULL      |UAoHUrJQXz  |true         |
-|[38 C8 66 D4 2E 74 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|1.0000000000|CREDIT     |UAoHUrJQXz|3.00     |2025-06-13 00:00:00|kCiIdGbuyg     |SUCCESS       |MATCHED     |PENDING          |OK     |UAoHUrJQXz|1000003    |DITR0OC6N6AF2785WWE6|2.00        |3.00     |SUCCESS           |SUCCESS       |2025-06-26 14:45:03 |1         |1         |UAoHUrJQXz  |true         |
-|[38 C8 66 D4 2E 74 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|1.0000000000|CREDIT     |UAoHUrJQXz|3.00     |2025-06-13 00:00:00|kCiIdGbuyg     |SUCCESS       |DUPLICATE   |PENDING          |OK     |UAoHUrJQXz|1000003    |DITR0OC6N6AF2785WWE6|2.00        |3.00     |SUCCESS           |SUCCESS       |2025-06-26 14:45:03 |1         |2         |UAoHUrJQXz  |true         |
-|[38 C8 66 D4 2E 77 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|1.0000000000|CREDIT     |WeYYihtdKs|3.00     |2025-06-13 00:00:00|lTVglgHaFs     |SUCCESS       |UNMATCHED   |PENDING          |Cleared|NULL      |NULL       |NULL                |NULL        |NULL     |NULL              |NULL          |NULL                |0         |NULL      |NULL        |false        |
-|[38 C8 66 D4 2E 75 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|2.0000000000|CREDIT     |YxfbQLXcEZ|3.00     |2025-06-13 00:00:00|AUvxCfnrjo     |SUCCESS       |MATCHED     |PENDING          |Cleared|YxfbQLXcEZ|1000003    |OO5RJ3GKA63PDEN6O1S0|2.00        |3.00     |SUCCESS           |SUCCESS       |2025-06-26 14:45:03 |1         |1         |YxfbQLXcEZ  |true         |
-|[38 C8 66 D4 2E 76 96 EA E0 63 7C 86 B1 0A 3D E3]|[1A 6C F1 3C DF 22 48 45 A1 5A F7 40 E2 71 60 15]|3.0000000000|DEBIT      |pUfvqBKcnr|3.00     |2025-06-13 00:00:00|HCcDyogjlA     |SUCCESS       |MATCHED     |PENDING          |OK     |pUfvqBKcnr|1000003    |UBB2Z6OTF2Z4JX34AK47|2.00        |3.00     |SUCCESS           |SUCCESS       |2025-06-26 14:45:03 |1         |1         |pUfvqBKcnr  |true         |
-+-------------------------------------------------+-------------------------------------------------+------------+-----------+----------+---------+-------------------+---------------+--------------+------------+-----------------+-------+----------+-----------+--------------------+------------+---------+------------------+--------------+--------------------+----------+----------+------------+-------------+
+Dataset<Row> withMatchedFlag = joined
+    .join(matchedAtrns,
+          col("recon.ATRN_NUM").equalTo(col("MATCHED_ATRN"))
+              .and(col("recon.DEBIT_AMT").equalTo(col("MATCHED_DEBIT_AMT"))),
+          "left_outer")
+    .withColumn("isAtrnMatched", col("MATCHED_ATRN").isNotNull());
