@@ -1,46 +1,52 @@
-private Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<Row> transactionDataset) {
-    logger.info("Starting classification of recon data...");
+public Dataset<Row>[] classifyReconData(Dataset<Row> reconFileDataset, Dataset<Row> transactionDataset) {
+        logger.info("Starting classification of recon data...");
 
-    // Step 1: Join recon and transaction on atrnNum and debitAmt to find exact matches
-    Dataset<Row> reconWithTxMatch = reconFileDataset
-            .join(transactionDataset,
-                    reconFileDataset.col(ATRN_NUM).equalTo(transactionDataset.col(ATRN_NUM))
-                            .and(reconFileDataset.col(DEBIT_AMT).equalTo(transactionDataset.col(DEBIT_AMT))),
-                    "left"
-            )
-            .withColumn("isMatched", transactionDataset.col(ATRN_NUM).isNotNull());
+        WindowSpec matchWindow = Window
+                .partitionBy("recon." + ATRN_NUM, "recon." + DEBIT_AMT)
+                .orderBy(RFD_ID);
 
-    // Step 2: Mark matched rows
-    Dataset<Row> matched = reconWithTxMatch
-            .filter(col("isMatched").equalTo(true))
-            .drop("isMatched")
-            .withColumn(RECON_STATUS_FIELD, lit(RECON_STATUS_MATCHED));
+        logger.info("Performing join between recon and transaction data.");
+        Dataset<Row> joined = reconFileDataset
+                .join(transactionDataset,
+                        reconFileDataset.col("recon." + ATRN_NUM).equalTo(transactionDataset.col(ATRN_NUM))
+                                .and(reconFileDataset.col("recon." + DEBIT_AMT).equalTo(transactionDataset.col(DEBIT_AMT))),
+                        "left_outer"
+                )
+                .withColumn("exactMatch", when(transactionDataset.col(ATRN_NUM).isNotNull(), lit(1)).otherwise(lit(0)))
+                .withColumn("match_rank", when(col("exactMatch").equalTo(1), row_number().over(matchWindow)));
+        joined.printSchema();
+        joined.show(false);
+        logger.info("Identifying matched atrn numbers.");
+        Dataset<Row> matchedAtrns = joined
+                .filter(col("match_rank").equalTo(1))
+                .select("recon." + ATRN_NUM)
+                .distinct()
+                .withColumnRenamed(ATRN_NUM, MATCHED_ATRN);
 
-    // Step 3: Identify unmatched/duplicate (where atrnNum exists in transaction, but debitAmt differs OR not in transaction)
-    Dataset<Row> remaining = reconFileDataset
-            .join(matched.select(ATRN_NUM, DEBIT_AMT), 
-                  reconFileDataset.col(ATRN_NUM).equalTo(matched.col(ATRN_NUM))
-                  .and(reconFileDataset.col(DEBIT_AMT).equalTo(matched.col(DEBIT_AMT))),
-                  "leftanti");
+        matchedAtrns.printSchema();
+        matchedAtrns.show(false);
 
-    // Step 4: Apply row_number partitioned by atrnNum to tag first occurrence as unmatched, rest as duplicates
-    WindowSpec dupWindow = Window.partitionBy(ATRN_NUM).orderBy(DEBIT_AMT); // can use any column to order
+        logger.info("Tagging matched status.");
+        Dataset<Row> withMatchedFlag = joined
+                .join(matchedAtrns, joined.col("recon." + ATRN_NUM).equalTo(matchedAtrns.col(MATCHED_ATRN)), "left_outer")
+                .withColumn("isAtrnMatched", col(MATCHED_ATRN).isNotNull());
 
-    Dataset<Row> remainingWithFlags = remaining
-            .withColumn("row_num", row_number().over(dupWindow))
-            .withColumn(RECON_STATUS_FIELD,
-                    when(col("row_num").equalTo(1), lit(RECON_STATUS_UNMATCHED))
-                            .otherwise(lit(RECON_STATUS_DUPLICATE))
-            )
-            .drop("row_num");
+        matchedAtrns.show(false);
 
-    // Step 5: Combine matched + remainingWithFlags
-    Dataset<Row> finalDataset = matched.unionByName(remainingWithFlags);
+        logger.info("Applying classification logic to tag rows with status.");
+        Dataset<Row> finalStatus = withMatchedFlag.withColumn(RECON_STATUS_FIELD,
+                when(col("exactMatch").equalTo(1).and(col("match_rank").equalTo(1)), lit(RECON_STATUS_MATCHED))
+                        .when(col("exactMatch").equalTo(1).and(col("match_rank").gt(1)), lit(RECON_STATUS_DUPLICATE))
+                        .when(col("exactMatch").equalTo(0).and(col("isAtrnMatched").equalTo(true)), lit(RECON_STATUS_DUPLICATE))
+                        .otherwise(lit(RECON_STATUS_UNMATCHED))
+        );
 
-    // Return matched, duplicate, unmatched
-    return new Dataset[]{
-            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_MATCHED)),
-            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_DUPLICATE)),
-            finalDataset.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_UNMATCHED))
-    };
-}
+        finalStatus.show(false);
+
+        logger.info("Returning classified datasets: matched, duplicate, unmatched.");
+        return new Dataset[]{
+                finalStatus.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_MATCHED)),
+                finalStatus.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_DUPLICATE)),
+                finalStatus.filter(col(RECON_STATUS_FIELD).equalTo(RECON_STATUS_UNMATCHED))
+        };//matched, duplicate, unmatched
+    }
