@@ -1,8 +1,4 @@
-/**
- * This method deletes data from RECON_STATUS_STAGE table by rfsId.
- *
- * @param rfsId the identifier to delete records by
- */
-public void clearStageTableByRfsId(String rfsId) {
-    jdbcTemplate.update("DELETE FROM RECON_STATUS_STAGE WHERE rfs_id = ?", rfsId);
-}
+public static String buildQueryForTransaction(UUID rfsId){
+        String hexUUID = rfsId.toString().replace("-", "").toUpperCase();
+        return String.format("(SELECT m.* FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r WHERE r.ATRN_NUM = m.ATRN_NUM AND r.RFS_ID = HEXTORAW('%s'))", hexUUID);
+    }
