@@ -1,50 +1,29 @@
-package com.example.sftpupload.service;
+public static void main(String[] args) {
+        final String rootDir = "C:/SFTP/Server";
+        final int port = 2222;
+        final String userName = "root";
+        final String password = "root";
+        try {
+            SshServer sshd = SshServer.setUpDefaultServer();
+            sshd.setPort(port);
+            sshd.setKeyPairProvider(new SimpleGeneratorHostKeyProvider(Paths.get("hostkey.ser")));
+            sshd.setPasswordAuthenticator((u, p, session) -> u.equals(userName) && p.equals(password));
+            sshd.setSubsystemFactories(Collections.singletonList(new SftpSubsystemFactory()));
+            sshd.setFileSystemFactory(new VirtualFileSystemFactory(Paths.get(rootDir)));
 
-import com.jcraft.jsch.ChannelSftp;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    logger.info("Shutting down SFTP server...");
+                    sshd.stop();
+                } catch (IOException e) {
+                    logger.error("Error while stopping SFTP server: " + e.getMessage());
+                }
+            }));
 
-import java.io.InputStream;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-
-@Service
-@RequiredArgsConstructor
-public class SftpUploadService {
-
-    private final ChannelSftp channelSftp;
-
-    @Value("${sftp.remote-dir}")
-    private String remoteDir;
-
-    public String uploadFile(MultipartFile file) {
-        try (InputStream inputStream = file.getInputStream()) {
-            channelSftp.cd(remoteDir);
-
-            // 🔽 Append current date to filename (e.g., report_2025-07-02.csv)
-            String originalFilename = file.getOriginalFilename();
-            String newFilename = appendDateToFilename(originalFilename);
-
-            channelSftp.put(inputStream, newFilename);
-
-            return "File uploaded as: " + newFilename;
+            sshd.start();
+           logger.info("SFTP server started on port " + port + ", root: " + rootDir);
+            Thread.currentThread().join();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to upload file: " + e.getMessage(), e);
+           logger.error("Failed to start SFTP server: " + e.getMessage());
         }
     }
-
-    private String appendDateToFilename(String originalFilename) {
-        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-
-        int dotIndex = originalFilename.lastIndexOf('.');
-        if (dotIndex > 0) {
-            String namePart = originalFilename.substring(0, dotIndex);
-            String extension = originalFilename.substring(dotIndex);
-            return namePart + "_" + date + extension;
-        } else {
-            return originalFilename + "_" + date;
-        }
-    }
-}
