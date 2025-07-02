@@ -1,18 +1,4 @@
-Certainly! Here's the updated version without the word "urgent":
-
-
----
-
-Subject: Request Regarding Workspace Change
-
-Dear [Manager's Name],
-
-I’ve been working from my current setup for the past six months without any issues, so I was a bit surprised by the sudden change in seating.
-
-I’d prefer to continue here and will ensure my tasks are completed on time. If needed, I can switch to the new place the next day.
-
-Thanks for your understanding.
-
-Best regards,
-[Your Name]
-
+public static String buildQueryForTransaction(UUID rfsId){
+        String hexUUID = rfsId.toString().replace("-", "").toUpperCase();
+        return String.format("(SELECT m.* FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r WHERE r.ATRN_NUM = m.ATRN_NUM AND r.RFS_ID = HEXTORAW('%s'))", hexUUID);
+    }
