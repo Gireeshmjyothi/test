@@ -1,3 +1,10 @@
+package com.example.config;
+
+import com.jcraft.jsch.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.context.annotation.Lazy;
+
 @Configuration
 public class SftpConfig {
 
@@ -38,7 +45,7 @@ public class SftpConfig {
 
     @Lazy
     @Bean
-    public ChannelSftp getChannelSftp(@Autowired(required = false) Session session) {
+    public ChannelSftp getChannelSftp(@Lazy Session session) {
         if (session == null) {
             System.err.println("SFTP session is not available. Skipping SFTP channel setup.");
             return null;
@@ -47,7 +54,7 @@ public class SftpConfig {
             Channel channel = session.openChannel("sftp");
             channel.connect();
             ChannelSftp sftpChannel = (ChannelSftp) channel;
-            sftpChannel.cd(remoteDirectory); // optional
+            sftpChannel.cd(remoteDirectory);
             return sftpChannel;
         } catch (Exception e) {
             System.err.println("Failed to create SFTP channel: " + e.getMessage());
@@ -60,28 +67,39 @@ public class SftpConfig {
     }
 }
 
-@RequiredArgsConstructor
+
+
+package com.example.service;
+
+import com.jcraft.jsch.ChannelSftp;
+import com.jcraft.jsch.SftpException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.InputStream;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class FileUploadService {
 
-    private final ChannelSftp channelSftp;
+    private final ObjectProvider<ChannelSftp> sftpProvider;
 
-    public void uploadFile(...) {
-        if (channelSftp == null) {
+    public String uploadFile(MultipartFile file, String filePath) {
+        log.info("Uploading file into sftp.");
+        ChannelSftp sftpChannel = sftpProvider.getIfAvailable();
+
+        if (sftpChannel == null) {
             throw new IllegalStateException("SFTP is not configured or connected.");
         }
-        // Proceed with upload
-    }
-}
 
-
-public String uploadFile(MultipartFile file, String filePath) {
-        logger.info("Uploading file into sftp.");
         try (InputStream inputStream = file.getInputStream()) {
-            if (sftpChannel == null) {
-                throw new BaseException(ErrorConstants.GENERIC_ERROR_CODE, "SFTP is not configured or connected.");
-            }
-            createDirectoriesIfNotExist(filePath);
+            createDirectoriesIfNotExist(sftpChannel, filePath);
 
             sftpChannel.cd(filePath);
 
@@ -89,19 +107,19 @@ public String uploadFile(MultipartFile file, String filePath) {
             String newFilename = appendDateToFilename(originalFilename);
 
             sftpChannel.put(inputStream, newFilename);
-            logger.info("File uploaded successfully: {}", newFilename);
+            log.info("File uploaded successfully: {}", newFilename);
             return "File uploaded as: " + newFilename;
 
         } catch (Exception e) {
-            throw new BaseException(ErrorConstants.GENERIC_ERROR_CODE, e.getMessage());
+            throw new RuntimeException("File upload failed: " + e.getMessage(), e);
         }
     }
 
-    private void createDirectoriesIfNotExist(String path) {
+    private void createDirectoriesIfNotExist(ChannelSftp sftpChannel, String path) {
         try {
             String[] folders = path.split("/");
             StringBuilder currentPath = new StringBuilder();
-            sftpChannel.cd("/"); // Start from root
+            sftpChannel.cd("/");
 
             for (String folder : folders) {
                 if (folder == null || folder.trim().isEmpty()) continue;
@@ -111,16 +129,16 @@ public String uploadFile(MultipartFile file, String filePath) {
                 } catch (SftpException e) {
                     sftpChannel.mkdir(currentPath.toString());
                     sftpChannel.cd(currentPath.toString());
+                    log.info("Created directory: {}", currentPath);
                 }
             }
         } catch (Exception e) {
-            throw new BaseException(ErrorConstants.GENERIC_ERROR_CODE,
-                    "Failed to create remote directory path: " + path + " - " + e.getMessage());
+            throw new RuntimeException("Failed to create remote directory path: " + path + " - " + e.getMessage(), e);
         }
     }
 
     private String appendDateToFilename(String originalFilename) {
-        logger.info("Appending date to given file");
+        log.info("Appending date to given file");
         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         int dotIndex = originalFilename.lastIndexOf('.');
         if (dotIndex > 0) {
@@ -131,4 +149,4 @@ public String uploadFile(MultipartFile file, String filePath) {
             return originalFilename + "_" + date;
         }
     }
-
+}
