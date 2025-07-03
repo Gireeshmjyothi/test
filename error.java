@@ -59,3 +59,18 @@ public class SftpConfig {
         return remoteDirectory;
     }
 }
+
+@RequiredArgsConstructor
+@Service
+public class FileUploadService {
+
+    private final ChannelSftp channelSftp;
+
+    public void uploadFile(...) {
+        if (channelSftp == null) {
+            throw new IllegalStateException("SFTP is not configured or connected.");
+        }
+        // Proceed with upload
+    }
+}
+
