@@ -1,39 +1,61 @@
-@Value("${sftp.host}")
+@Configuration
+public class SftpConfig {
+
+    @Value("${sftp.host:}")
     private String host;
 
-    @Value("${sftp.port}")
+    @Value("${sftp.port:22}")
     private int port;
 
-    @Value("${sftp.username}")
+    @Value("${sftp.username:}")
     private String username;
 
-    @Value("${sftp.password}")
+    @Value("${sftp.password:}")
     private String password;
 
-    @Value("${sftp.remote.directory}")
+    @Value("${sftp.remote.directory:/}")
     private String remoteDirectory;
 
+    @Lazy
     @Bean
-    public Session getSession() throws JSchException{
-        JSch jsch = new JSch();
-        Session session = null;
-        session = jsch.getSession(username, host, port);
-        session.setPassword(password);
-        session.setConfig("StrictHostKeyChecking", "no");
-        session.connect();
-        return session;
+    public Session getSession() {
+        if (host.isEmpty() || username.isEmpty()) {
+            System.err.println("SFTP config missing. Skipping session creation.");
+            return null;
+        }
+        try {
+            JSch jsch = new JSch();
+            Session session = jsch.getSession(username, host, port);
+            session.setPassword(password);
+            session.setConfig("StrictHostKeyChecking", "no");
+            session.connect();
+            return session;
+        } catch (Exception e) {
+            System.err.println("SFTP session connection failed: " + e.getMessage());
+            return null;
+        }
     }
 
+    @Lazy
     @Bean
-    public ChannelSftp getChannelSftp(Session session) throws JSchException, SftpException {
-        ChannelSftp sftpChannel = null;
-        Channel channel = session.openChannel("sftp");
-        channel.connect();
-        sftpChannel = (ChannelSftp) channel;
-        sftpChannel.cd(remoteDirectory);
-        return sftpChannel;
+    public ChannelSftp getChannelSftp(@Autowired(required = false) Session session) {
+        if (session == null) {
+            System.err.println("SFTP session is not available. Skipping SFTP channel setup.");
+            return null;
+        }
+        try {
+            Channel channel = session.openChannel("sftp");
+            channel.connect();
+            ChannelSftp sftpChannel = (ChannelSftp) channel;
+            sftpChannel.cd(remoteDirectory); // optional
+            return sftpChannel;
+        } catch (Exception e) {
+            System.err.println("Failed to create SFTP channel: " + e.getMessage());
+            return null;
+        }
     }
 
     public String getRootPath() {
-       return remoteDirectory;
+        return remoteDirectory;
     }
+}
