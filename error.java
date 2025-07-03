@@ -69,4 +69,75 @@ public class SftpUploadService {
             createDirectoriesIfNotExist(sftp, fullPath);
             sftp.cd(fullPath);
 
-            String newFileName = appendDateToFilename(file.getOriginalFilename
+            String newFileName = appendDateToFilename(file.getOriginalFilename());
+            sftp.put(inputStream, newFileName);
+
+            log.info("Uploaded to SFTP: {}/{}", fullPath, newFileName);
+            return newFileName;
+
+        } catch (Exception e) {
+            throw new RuntimeException("SFTP upload failed: " + e.getMessage(), e);
+        } finally {
+            if (sftp != null) {
+                try {
+                    sftp.exit();
+                    if (sftp.getSession() != null) sftp.getSession().disconnect();
+                } catch (Exception ex) {
+                    log.warn("Failed to disconnect SFTP session: {}", ex.getMessage());
+                }
+            }
+        }
+    }
+
+    private void createDirectoriesIfNotExist(ChannelSftp sftp, String path) throws SftpException {
+        String[] folders = path.split("/");
+        StringBuilder currentPath = new StringBuilder();
+        sftp.cd("/");
+
+        for (String folder : folders) {
+            if (folder == null || folder.trim().isEmpty()) continue;
+            currentPath.append("/").append(folder);
+            try {
+                sftp.cd(currentPath.toString());
+            } catch (SftpException e) {
+                sftp.mkdir(currentPath.toString());
+                sftp.cd(currentPath.toString());
+                log.info("Created directory: {}", currentPath);
+            }
+        }
+    }
+
+    private String appendDateToFilename(String originalFilename) {
+        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        int dotIndex = originalFilename.lastIndexOf('.');
+        return (dotIndex > 0)
+                ? originalFilename.substring(0, dotIndex) + "_" + date + originalFilename.substring(dotIndex)
+                : originalFilename + "_" + date;
+    }
+}
+
+
+package com.example.controller;
+
+import com.example.service.SftpUploadService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/sftp")
+@RequiredArgsConstructor
+public class FileController {
+
+    private final SftpUploadService sftpUploadService;
+
+    @PostMapping("/upload")
+    public ResponseEntity<String> uploadFile(@RequestParam MultipartFile file,
+                                             @RequestParam(defaultValue = "") String path) {
+        String uploadedFile = sftpUploadService.uploadToSftp(file, path);
+        return ResponseEntity.ok("Uploaded: " + uploadedFile);
+    }
+}
+
+                                        
