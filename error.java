@@ -1,41 +1,39 @@
-public String uploadFile(MultipartFile file, String filePath) {
-    logger.info("Uploading file into sftp.");
-    try (InputStream inputStream = file.getInputStream()) {
+@Value("${sftp.host}")
+    private String host;
 
-        createDirectoriesIfNotExist(filePath); // 🔧 Ensures the path exists
+    @Value("${sftp.port}")
+    private int port;
 
-        sftpChannel.cd(filePath);
+    @Value("${sftp.username}")
+    private String username;
 
-        String originalFilename = file.getOriginalFilename();
-        String newFilename = appendDateToFilename(originalFilename);
+    @Value("${sftp.password}")
+    private String password;
 
-        sftpChannel.put(inputStream, newFilename);
-        logger.info("File uploaded successfully: {}", newFilename);
-        return "File uploaded as: " + newFilename;
+    @Value("${sftp.remote.directory}")
+    private String remoteDirectory;
 
-    } catch (Exception e) {
-        throw new BaseException(ErrorConstants.GENERIC_ERROR_CODE, e.getMessage());
+    @Bean
+    public Session getSession() throws JSchException{
+        JSch jsch = new JSch();
+        Session session = null;
+        session = jsch.getSession(username, host, port);
+        session.setPassword(password);
+        session.setConfig("StrictHostKeyChecking", "no");
+        session.connect();
+        return session;
     }
-}
-private void createDirectoriesIfNotExist(String path) {
-    try {
-        String[] folders = path.split("/");
-        StringBuilder currentPath = new StringBuilder();
-        sftpChannel.cd("/"); // Start from root
 
-        for (String folder : folders) {
-            if (folder == null || folder.trim().isEmpty()) continue;
-            currentPath.append("/").append(folder);
-            try {
-                sftpChannel.cd(currentPath.toString());
-            } catch (SftpException e) {
-                // Folder doesn't exist — create and cd into it
-                sftpChannel.mkdir(currentPath.toString());
-                sftpChannel.cd(currentPath.toString());
-            }
-        }
-    } catch (Exception e) {
-        throw new BaseException(ErrorConstants.GENERIC_ERROR_CODE,
-                "Failed to create remote directory path: " + path + " - " + e.getMessage());
+    @Bean
+    public ChannelSftp getChannelSftp(Session session) throws JSchException, SftpException {
+        ChannelSftp sftpChannel = null;
+        Channel channel = session.openChannel("sftp");
+        channel.connect();
+        sftpChannel = (ChannelSftp) channel;
+        sftpChannel.cd(remoteDirectory);
+        return sftpChannel;
     }
-}
+
+    public String getRootPath() {
+       return remoteDirectory;
+    }
