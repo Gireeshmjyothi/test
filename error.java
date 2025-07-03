@@ -1,81 +1,38 @@
-package com.example.config;
+package com.example.util;
 
 import com.jcraft.jsch.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.*;
-import org.springframework.context.annotation.Lazy;
+import lombok.extern.slf4j.Slf4j;
 
-@Configuration
-public class SftpConfig {
+@Slf4j
+public class SftpUtil {
 
-    @Value("${sftp.host:}")
-    private String host;
-
-    @Value("${sftp.port:22}")
-    private int port;
-
-    @Value("${sftp.username:}")
-    private String username;
-
-    @Value("${sftp.password:}")
-    private String password;
-
-    @Value("${sftp.remote.directory:/}")
-    private String remoteDirectory;
-
-    @Lazy
-    @Bean
-    public Session getSession() {
-        if (host.isEmpty() || username.isEmpty()) {
-            System.err.println("SFTP config missing. Skipping session creation.");
-            return null;
-        }
+    public static ChannelSftp getSftpChannel(String host, int port, String username, String password) {
         try {
             JSch jsch = new JSch();
             Session session = jsch.getSession(username, host, port);
             session.setPassword(password);
             session.setConfig("StrictHostKeyChecking", "no");
             session.connect();
-            return session;
-        } catch (Exception e) {
-            System.err.println("SFTP session connection failed: " + e.getMessage());
-            return null;
-        }
-    }
 
-    @Lazy
-    @Bean
-    public ChannelSftp getChannelSftp(@Lazy Session session) {
-        if (session == null) {
-            System.err.println("SFTP session is not available. Skipping SFTP channel setup.");
-            return null;
-        }
-        try {
             Channel channel = session.openChannel("sftp");
             channel.connect();
-            ChannelSftp sftpChannel = (ChannelSftp) channel;
-            sftpChannel.cd(remoteDirectory);
-            return sftpChannel;
-        } catch (Exception e) {
-            System.err.println("Failed to create SFTP channel: " + e.getMessage());
-            return null;
-        }
-    }
 
-    public String getRootPath() {
-        return remoteDirectory;
+            log.info("SFTP connection established.");
+            return (ChannelSftp) channel;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to connect to SFTP: " + e.getMessage(), e);
+        }
     }
 }
 
-
-
 package com.example.service;
 
+import com.example.util.SftpUtil;
 import com.jcraft.jsch.ChannelSftp;
 import com.jcraft.jsch.SftpException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -86,67 +43,30 @@ import java.time.format.DateTimeFormatter;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class FileUploadService {
+public class SftpUploadService {
 
-    private final ObjectProvider<ChannelSftp> sftpProvider;
+    @Value("${sftp.host}")
+    private String host;
 
-    public String uploadFile(MultipartFile file, String filePath) {
-        log.info("Uploading file into sftp.");
-        ChannelSftp sftpChannel = sftpProvider.getIfAvailable();
+    @Value("${sftp.port}")
+    private Integer port;
 
-        if (sftpChannel == null) {
-            throw new IllegalStateException("SFTP is not configured or connected.");
-        }
+    @Value("${sftp.username}")
+    private String username;
 
+    @Value("${sftp.password}")
+    private String password;
+
+    @Value("${sftp.remote.directory}")
+    private String baseRemoteDir;
+
+    public String uploadToSftp(MultipartFile file, String subPath) {
+        ChannelSftp sftp = null;
         try (InputStream inputStream = file.getInputStream()) {
-            createDirectoriesIfNotExist(sftpChannel, filePath);
+            sftp = SftpUtil.getSftpChannel(host, port, username, password);
 
-            sftpChannel.cd(filePath);
+            String fullPath = baseRemoteDir + (subPath != null ? "/" + subPath : "");
+            createDirectoriesIfNotExist(sftp, fullPath);
+            sftp.cd(fullPath);
 
-            String originalFilename = file.getOriginalFilename();
-            String newFilename = appendDateToFilename(originalFilename);
-
-            sftpChannel.put(inputStream, newFilename);
-            log.info("File uploaded successfully: {}", newFilename);
-            return "File uploaded as: " + newFilename;
-
-        } catch (Exception e) {
-            throw new RuntimeException("File upload failed: " + e.getMessage(), e);
-        }
-    }
-
-    private void createDirectoriesIfNotExist(ChannelSftp sftpChannel, String path) {
-        try {
-            String[] folders = path.split("/");
-            StringBuilder currentPath = new StringBuilder();
-            sftpChannel.cd("/");
-
-            for (String folder : folders) {
-                if (folder == null || folder.trim().isEmpty()) continue;
-                currentPath.append("/").append(folder);
-                try {
-                    sftpChannel.cd(currentPath.toString());
-                } catch (SftpException e) {
-                    sftpChannel.mkdir(currentPath.toString());
-                    sftpChannel.cd(currentPath.toString());
-                    log.info("Created directory: {}", currentPath);
-                }
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create remote directory path: " + path + " - " + e.getMessage(), e);
-        }
-    }
-
-    private String appendDateToFilename(String originalFilename) {
-        log.info("Appending date to given file");
-        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-        int dotIndex = originalFilename.lastIndexOf('.');
-        if (dotIndex > 0) {
-            String namePart = originalFilename.substring(0, dotIndex);
-            String extension = originalFilename.substring(dotIndex);
-            return namePart + "_" + date + extension;
-        } else {
-            return originalFilename + "_" + date;
-        }
-    }
-}
+            String newFileName = appendDateToFilename(file.getOriginalFilename
