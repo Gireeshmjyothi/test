@@ -1,30 +1,3 @@
-package com.example.util;
-
-import com.jcraft.jsch.*;
-import lombok.extern.slf4j.Slf4j;
-
-@Slf4j
-public class SftpUtil {
-
-    public static ChannelSftp getSftpChannel(String host, int port, String username, String password) {
-        try {
-            JSch jsch = new JSch();
-            Session session = jsch.getSession(username, host, port);
-            session.setPassword(password);
-            session.setConfig("StrictHostKeyChecking", "no");
-            session.connect();
-
-            Channel channel = session.openChannel("sftp");
-            channel.connect();
-
-            log.info("SFTP connection established.");
-            return (ChannelSftp) channel;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to connect to SFTP: " + e.getMessage(), e);
-        }
-    }
-}
-
 package com.example.service;
 
 import com.example.util.SftpUtil;
@@ -65,7 +38,9 @@ public class SftpUploadService {
         try (InputStream inputStream = file.getInputStream()) {
             sftp = SftpUtil.getSftpChannel(host, port, username, password);
 
-            String fullPath = baseRemoteDir + (subPath != null ? "/" + subPath : "");
+            // Build remote path relative to root (mapped as C:/)
+            String fullPath = baseRemoteDir + (subPath != null && !subPath.isBlank() ? "/" + subPath : "");
+
             createDirectoriesIfNotExist(sftp, fullPath);
             sftp.cd(fullPath);
 
@@ -91,18 +66,15 @@ public class SftpUploadService {
 
     private void createDirectoriesIfNotExist(ChannelSftp sftp, String path) throws SftpException {
         String[] folders = path.split("/");
-        StringBuilder currentPath = new StringBuilder();
-        sftp.cd("/");
 
         for (String folder : folders) {
             if (folder == null || folder.trim().isEmpty()) continue;
-            currentPath.append("/").append(folder);
             try {
-                sftp.cd(currentPath.toString());
+                sftp.cd(folder);
             } catch (SftpException e) {
-                sftp.mkdir(currentPath.toString());
-                sftp.cd(currentPath.toString());
-                log.info("Created directory: {}", currentPath);
+                sftp.mkdir(folder);
+                sftp.cd(folder);
+                log.info("Created directory: {}", folder);
             }
         }
     }
@@ -115,29 +87,3 @@ public class SftpUploadService {
                 : originalFilename + "_" + date;
     }
 }
-
-
-package com.example.controller;
-
-import com.example.service.SftpUploadService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-
-@RestController
-@RequestMapping("/sftp")
-@RequiredArgsConstructor
-public class FileController {
-
-    private final SftpUploadService sftpUploadService;
-
-    @PostMapping("/upload")
-    public ResponseEntity<String> uploadFile(@RequestParam MultipartFile file,
-                                             @RequestParam(defaultValue = "") String path) {
-        String uploadedFile = sftpUploadService.uploadToSftp(file, path);
-        return ResponseEntity.ok("Uploaded: " + uploadedFile);
-    }
-}
-
-                                        
