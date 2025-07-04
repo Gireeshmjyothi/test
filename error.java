@@ -1,4 +1,30 @@
-org.apache.spark.sql.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column or function parameter with name `_c1` cannot be resolved. Did you mean one of the following? [`1`, `UAoHUrJQXz`, `20250303`, `1437190306713`, `4172120250303000100440401`, `3`, `018300100043524`, `Savings Bank-Resident`, `25030311490458577`].
-	at org.apache.spark.sql.errors.QueryCompilationErrors$.unresolvedColumnWithSuggestionError(QueryCompilationErrors.scala:3109)
-	at org.apache.spark.sql.errors.QueryCompilationErrors$.resolveException(QueryCompilationErrors.scala:3117)
-	at org.apache.spark.sql.Dataset.$anonfun$resolve$1(Dataset.scala:251)
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.functions.*;
+import org.apache.spark.sql.types.*;
+
+import java.io.File;
+import java.util.*;
+
+public class FileProcessor {
+
+    public Dataset<Row> processPipeDelimitedFile(SparkSession spark, File file, Map<String, Integer> config) {
+        // Step 1: Read text file (one column named "value")
+        Dataset<Row> raw = spark.read()
+                .format("text")
+                .load(file.getAbsolutePath());
+
+        // Step 2: Split the line into array
+        Dataset<Row> splitDF = raw.withColumn("fields", functions.split(col("value"), "\\|"));
+
+        // Step 3: Build select columns based on config
+        List<Column> selectedCols = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : config.entrySet()) {
+            String key = entry.getKey();
+            int index = entry.getValue() - 1; // 1-based to 0-based
+            selectedCols.add(col("fields").getItem(index).alias(key));
+        }
+
+        // Step 4: Return dataset with selected columns
+        return splitDF.select(selectedCols.toArray(new Column[0]));
+    }
+}
