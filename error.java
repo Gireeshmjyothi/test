@@ -1,6 +1,8 @@
-String cleanBase = baseRemoteDir.replaceAll("^/+", "").replaceAll("/+$", ""); // 'upload'
-String cleanSub = subPath != null ? subPath.replaceAll("^/+", "").replaceAll("/+$", "") : "";
-String fullPath = cleanSub.isEmpty() ? cleanBase : cleanBase + "/" + cleanSub;
-
-// ✅ This will be like: 'upload/HDFC'
-createDirectoriesIfNotExist(sftp, fullPath); // safe, step-by-step
+{
+  "atrn": "2",
+  "recordtype": "1",
+  "paymentamount": "6",
+  "paymentdate": "8",
+  "bankrefnumber": "2",
+  "paymentstatus": "10"
+}
