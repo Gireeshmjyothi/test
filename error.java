@@ -1,22 +1,4 @@
-public Dataset<Row> extractColumnsFromPipeFile(SparkSession spark, File file, Map<String, Integer> config) {
-    // Step 1: Read file without header
-    Dataset<Row> raw = spark.read()
-            .option("delimiter", "|")
-            .option("inferSchema", "false")
-            .option("header", "false")
-            .csv(file.getAbsolutePath());
-
-    // Step 2: Prepare renamed columns based on config
-    List<Column> selectedColumns = new ArrayList<>();
-
-    for (Map.Entry<String, Integer> entry : config.entrySet()) {
-        String alias = entry.getKey();
-        int index = entry.getValue() - 1; // Convert 1-based to 0-based
-
-        String rawColName = "_c" + index;
-        selectedColumns.add(raw.col(rawColName).alias(alias));
-    }
-
-    // Step 3: Select only the desired columns
-    return raw.select(selectedColumns.toArray(new Column[0]));
-}
+org.apache.spark.sql.AnalysisException: [UNRESOLVED_COLUMN.WITH_SUGGESTION] A column or function parameter with name `_c1` cannot be resolved. Did you mean one of the following? [`1`, `UAoHUrJQXz`, `20250303`, `1437190306713`, `4172120250303000100440401`, `3`, `018300100043524`, `Savings Bank-Resident`, `25030311490458577`].
+	at org.apache.spark.sql.errors.QueryCompilationErrors$.unresolvedColumnWithSuggestionError(QueryCompilationErrors.scala:3109)
+	at org.apache.spark.sql.errors.QueryCompilationErrors$.resolveException(QueryCompilationErrors.scala:3117)
+	at org.apache.spark.sql.Dataset.$anonfun$resolve$1(Dataset.scala:251)
