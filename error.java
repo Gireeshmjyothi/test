@@ -1,33 +1,27 @@
 import org.apache.spark.api.java.JavaRDD;
-import org.apache.spark.api.java.function.Function;
 import org.apache.spark.sql.*;
-
-import java.util.Map;
 
 public Dataset<Row> loadTxt(String path, FileConfigDto fileConfigDto) {
     SparkSession spark = sparkConfig.sparkSession();
-    int headerRowIndex = fileConfigDto.getHeaderRowIndex(); // 1-based
+    int headerRowIndex = fileConfigDto.getHeaderRowIndex(); // 1-based index
     String delimiter = fileConfigDto.getDelimiter();
 
-    // Step 1: Read raw lines
+    // Step 1: Read the raw file as lines
     Dataset<String> rawLines = spark.read().textFile(path);
 
-    // Step 2: Zip with index to skip metadata/header lines
+    // Step 2: Skip metadata/header lines using zipWithIndex
     JavaRDD<String> filteredLines = rawLines.javaRDD()
         .zipWithIndex()
-        .filter(tuple -> tuple._2 >= (headerRowIndex - 1)) // headerRowIndex is 1-based
+        .filter(tuple -> tuple._2 >= (headerRowIndex - 1))
         .map(tuple -> tuple._1);
 
-    // Step 3: Convert to Dataset<String>
-    Dataset<String> validDataLines = spark.createDataset(filteredLines.rdd(), Encoders.STRING());
-
-    // Step 4: Read as CSV (from Dataset<String>)
+    // Step 3: Parse filtered RDD as CSV using delimiter
     Dataset<Row> raw = spark.read()
         .format("csv")
-        .option("header", false)  // already skipped header line if any
+        .option("header", false)
         .option("delimiter", delimiter)
-        .load(validDataLines);
+        .csv(filteredLines);  // <-- This is valid: passing JavaRDD<String>
 
-    // Step 5: Map columns (your existing method)
+    // Step 4: Map required columns based on config
     return mapColumn(raw, fileConfigDto.getMapColumn(), false);
-}
+            }
