@@ -1,29 +1,33 @@
+import org.apache.spark.api.java.JavaRDD;
+import org.apache.spark.api.java.function.Function;
+import org.apache.spark.sql.*;
+
+import java.util.Map;
+
 public Dataset<Row> loadTxt(String path, FileConfigDto fileConfigDto) {
     SparkSession spark = sparkConfig.sparkSession();
+    int headerRowIndex = fileConfigDto.getHeaderRowIndex(); // 1-based
+    String delimiter = fileConfigDto.getDelimiter();
 
-    int headerRowIndex = fileConfigDto.getHeaderRowIndex(); // e.g. 1, 2, etc.
-    boolean hasHeader = fileConfigDto.isHasHeader();
-    String delimiter = fileConfigDto.getDelimiter(); // e.g. "^"
-    Map<String, Integer> columnMap = fileConfigDto.getMapColumn();
+    // Step 1: Read raw lines
+    Dataset<String> rawLines = spark.read().textFile(path);
 
-    // Step 1: Load full file as text
-    Dataset<String> lines = spark.read().textFile(path);
+    // Step 2: Zip with index to skip metadata/header lines
+    JavaRDD<String> filteredLines = rawLines.javaRDD()
+        .zipWithIndex()
+        .filter(tuple -> tuple._2 >= (headerRowIndex - 1)) // headerRowIndex is 1-based
+        .map(tuple -> tuple._1);
 
-    // Step 2: Skip lines before header/data start
-    Dataset<String> actualLines = lines
-            .javaRDD()
-            .zipWithIndex()
-            .filter(tuple -> tuple._2() >= (headerRowIndex - 1)) // 0-based
-            .map(Tuple2::_1)
-            .toDS();
+    // Step 3: Convert to Dataset<String>
+    Dataset<String> validDataLines = spark.createDataset(filteredLines.rdd(), Encoders.STRING());
 
-    // Step 3: Read as CSV (header only if hasHeader is true)
+    // Step 4: Read as CSV (from Dataset<String>)
     Dataset<Row> raw = spark.read()
-            .format("csv")
-            .option("delimiter", delimiter)
-            .option("header", hasHeader)
-            .load(actualLines);
+        .format("csv")
+        .option("header", false)  // already skipped header line if any
+        .option("delimiter", delimiter)
+        .load(validDataLines);
 
-    // Step 4: Map required columns
-    return mapColumn(raw, columnMap, hasHeader);
+    // Step 5: Map columns (your existing method)
+    return mapColumn(raw, fileConfigDto.getMapColumn(), false);
 }
