@@ -1,36 +1,29 @@
 public Dataset<Row> loadTxt(String path, FileConfigDto fileConfigDto) {
     SparkSession spark = sparkConfig.sparkSession();
-    int skipLines = fileConfigDto.getHeaderRowIndex(); // e.g., 1
-    boolean hasHeader = fileConfigDto.isHasHeader();   // e.g., true or false
-    String delimiter = fileConfigDto.getDelimiter();   // e.g., "^"
 
-    // Step 1: Read full text file as lines
+    int headerRowIndex = fileConfigDto.getHeaderRowIndex(); // e.g. 1, 2, etc.
+    boolean hasHeader = fileConfigDto.isHasHeader();
+    String delimiter = fileConfigDto.getDelimiter(); // e.g. "^"
+    Map<String, Integer> columnMap = fileConfigDto.getMapColumn();
+
+    // Step 1: Load full file as text
     Dataset<String> lines = spark.read().textFile(path);
 
-    // Step 2: If header exists in a certain line (e.g., line 1), extract it
-    String headerLine = hasHeader ? lines.take(skipLines + 1)[skipLines] : null;
+    // Step 2: Skip lines before header/data start
+    Dataset<String> actualLines = lines
+            .javaRDD()
+            .zipWithIndex()
+            .filter(tuple -> tuple._2() >= (headerRowIndex - 1)) // 0-based
+            .map(Tuple2::_1)
+            .toDS();
 
-    // Step 3: Skip the header/metadata lines
-    Dataset<String> dataLines = lines.rdd()
-        .zipWithIndex()
-        .filter(t -> t._2() >= skipLines + (hasHeader ? 1 : 0))
-        .map(Tuple2::_1, Encoders.STRING());
-
-    // Step 4: Convert raw lines to single-column Dataset for Spark CSV reader
+    // Step 3: Read as CSV (header only if hasHeader is true)
     Dataset<Row> raw = spark.read()
-        .format("csv")
-        .option("delimiter", delimiter)
-        .option("header", false)
-        .load(dataLines);
+            .format("csv")
+            .option("delimiter", delimiter)
+            .option("header", hasHeader)
+            .load(actualLines);
 
-    // Step 5: If header exists, assign actual column names for better readability
-    if (hasHeader && headerLine != null) {
-        String[] columnNames = headerLine.split(Pattern.quote(delimiter));
-        for (int i = 0; i < columnNames.length; i++) {
-            raw = raw.withColumnRenamed("_c" + i, columnNames[i].trim());
-        }
-    }
-
-    // Step 6: Map columns using the provided config
-    return mapColumn(raw, fileConfigDto.getMapColumn(), hasHeader);
+    // Step 4: Map required columns
+    return mapColumn(raw, columnMap, hasHeader);
 }
