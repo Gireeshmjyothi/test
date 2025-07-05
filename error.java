@@ -1,23 +1,30 @@
 private Dataset<Row> loadTxt(String path, FileConfigDto fileConfigDto) {
-    int skipLines = fileConfigDto.getHeaderRowIndex(); // = 1 in your case
-    boolean hasHeader = fileConfigDto.isHasHeader();   // = false here
+    int skipLines = fileConfigDto.getHeaderRowIndex();  // e.g., 1
+    boolean hasHeader = fileConfigDto.isHasHeader();    // true or false
 
+    // Step 1: Read full file as Dataset<String>
     Dataset<String> lines = sparkConfig.sparkSession().read().textFile(path);
 
-    // Step 1: Skip metadata lines
-    Dataset<String> dataLines = lines.rdd()
+    // Step 2: Skip header/metadata lines using `zipWithIndex`
+    JavaRDD<String> filteredLines = lines.javaRDD()
             .zipWithIndex()
-            .filter(t -> t._2() >= skipLines)
-            .map(Tuple2::_1, Encoders.STRING())
-            .toDS();
+            .filter(tuple -> tuple._2() >= skipLines)
+            .map(Tuple2::_1);
 
-    // Step 2: Load as CSV
+    // Step 3: Convert filteredLines back to Dataset<String>
+    Dataset<String> dataLines = sparkConfig.sparkSession().createDataset(filteredLines.rdd(), Encoders.STRING());
+
+    // Step 4: Write to temporary path (Spark CSV reader needs path or file input stream)
+    String tempPath = "/tmp/cleaned_" + System.currentTimeMillis();
+    dataLines.coalesce(1).write().text(tempPath);  // write clean lines as text (one per line)
+
+    // Step 5: Now read it using CSV reader
     Dataset<Row> raw = sparkConfig.sparkSession().read()
             .format("csv")
             .option("delimiter", fileConfigDto.getDelimiter())
-            .option("header", false) // no header in this file
-            .load(dataLines);
+            .option("header", hasHeader)
+            .load(tempPath);
 
-    // Step 3: Map columns
-    return mapColumn(raw, fileConfigDto.getMapColumn(), false);
+    // Step 6: Map columns using config (always index-based)
+    return mapColumn(raw, fileConfigDto.getMapColumn(), hasHeader);
 }
