@@ -1,8 +1,11 @@
-implementation('com.crealytics:spark-excel_2.12:3.5.0_0.20.3') {
-    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    exclude group: 'log4j', module: 'log4j'
-    exclude group: 'org.apache.logging.log4j'
-    exclude group: 'ch.qos.logback'
-    exclude group: 'com.fasterxml.jackson.core'
-    exclude group: 'com.fasterxml.jackson.module'
-}
+private Dataset<Row> loadExcel(String path,  FileConfigDto fileConfigDto) {
+        Dataset<Row> df = sparkConfig.sparkSession().read()
+                .format("com.crealytics.spark.excel")
+                .option("dataAddress", "'Sheet1'!A1")
+                .option("header", fileConfigDto.getHeaderPresent())
+                .option("inferSchema", "true")
+                .option("treatEmptyValuesAsNulls", "true")
+                .option("addColorColumns", "false")
+                .load(path);
+        return mapColumn(df, fileConfigDto);
+    }
