@@ -1,11 +1,54 @@
-private Dataset<Row> loadExcel(String path,  FileConfigDto fileConfigDto) {
-        Dataset<Row> df = sparkConfig.sparkSession().read()
-                .format("com.crealytics.spark.excel")
-                .option("dataAddress", "'Sheet1'!A1")
-                .option("header", fileConfigDto.getHeaderPresent())
-                .option("inferSchema", "true")
-                .option("treatEmptyValuesAsNulls", "true")
-                .option("addColorColumns", "false")
-                .load(path);
-        return mapColumn(df, fileConfigDto);
-    }
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2025-07-07 19:51:17.844 ERROR | com.epay.rns.config.aws.S3Config:58 | principal=  | scenario= | operation= | correlation= | s3client | Application run failed
+org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'Admin_Bank_Master': Cannot resolve reference to bean 'gemfireCache' while setting bean property 'cache'
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:377)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyPropertyValues(AbstractAutowireCapableBeanFactory.java:1705)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1454)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:599)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:522)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:337)
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:234)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:335)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.preInstantiateSingletons(DefaultListableBeanFactory.java:969)
+	at org.springframework.context.support.AbstractApplicationContext.finishBeanFactoryInitialization(AbstractApplicationContext.java:971)
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:625)
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146)
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:754)
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:456)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:335)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1363)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1352)
+	at com.epay.rns.ReconSettlementServiceApplication.main(ReconSettlementServiceApplication.java:26)
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'gemfireCache': FactoryBean threw exception on object creation
+	at org.springframework.beans.factory.support.FactoryBeanRegistrySupport.doGetObjectFromFactoryBean(FactoryBeanRegistrySupport.java:188)
+	at org.springframework.beans.factory.support.FactoryBeanRegistrySupport.getObjectFromFactoryBean(FactoryBeanRegistrySupport.java:124)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getObjectForBeanInstance(AbstractBeanFactory.java:1867)
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.getObjectForBeanInstance(AbstractAutowireCapableBeanFactory.java:1296)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:259)
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:200)
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:365)
+	... 19 common frames omitted
+Caused by: java.lang.ExceptionInInitializerError: null
+	at org.apache.geode.internal.cache.GemFireCacheImpl.initializeClientRegionShortcuts(GemFireCacheImpl.java:4907)
+	at org.apache.geode.internal.cache.GemFireCacheImpl.initialize(GemFireCacheImpl.java:1434)
+	at org.apache.geode.internal.cache.InternalCacheBuilder.create(InternalCacheBuilder.java:198)
+	at org.apache.geode.cache.client.ClientCacheFactory.basicCreate(ClientCacheFactory.java:276)
+	at org.apache.geode.cache.client.ClientCacheFactory.create(ClientCacheFactory.java:222)
+	at org.springframework.data.gemfire.client.ClientCacheFactoryBean.createCache(ClientCacheFactoryBean.java:450)
+	at org.springframework.data.gemfire.AbstractResolvableCacheFactoryBean.resolveCache(AbstractResolvableCacheFactoryBean.java:138)
+	at org.springframework.data.gemfire.AbstractResolvableCacheFactoryBean.init(AbstractResolvableCacheFactoryBean.java:58)
+	at org.springframework.data.gemfire.AbstractResolvableCacheFactoryBean.doGetObject(AbstractResolvableCacheFactoryBean.java:38)
+	at org.springframework.data.gemfire.AbstractBasicCacheFactoryBean.getObject(AbstractBasicCacheFactoryBean.java:290)
+	at org.springframework.data.gemfire.AbstractBasicCacheFactoryBean.getObject(AbstractBasicCacheFactoryBean.java:94)
+	at org.springframework.beans.factory.support.FactoryBeanRegistrySupport.doGetObjectFromFactoryBean(FactoryBeanRegistrySupport.java:182)
+	... 25 common frames omitted
+Caused by: java.lang.UnsupportedOperationException: No class provided, and an appropriate one cannot be found.
+	at org.apache.logging.log4j.LogManager.callerClass(LogManager.java:529)
+	at org.apache.logging.log4j.LogManager.getLogger(LogManager.java:554)
+	at org.apache.geode.logging.internal.deprecation.AbstractDeprecatedSymbolBuilder.<init>(AbstractDeprecatedSymbolBuilder.java:30)
+	at org.apache.geode.logging.internal.deprecation.DeprecatedSymbolBuilder.<init>(DeprecatedSymbolBuilder.java:13)
+	at org.apache.geode.logging.internal.deprecation.DeprecatedSymbol.builder(DeprecatedSymbol.java:100)
+	at org.apache.geode.cache.AttributesFactory.<clinit>(AttributesFactory.java:962)
+	... 37 common frames omitted
