@@ -1,7 +1,13 @@
-implementation('com.crealytics:spark-excel_2.12:3.5.0_0.20.3') {
-    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
-    exclude group: 'log4j', module: 'log4j'
-    exclude group: 'org.apache.logging.log4j'
-    exclude group: 'ch.qos.logback'
-    exclude group: 'org.slf4j', module: 'jul-to-slf4j'
+// Required by Apache Geode / VMware GemFire
+implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+
+// Optional: If you want SLF4J logging to go to Log4j2
+implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.20.0'
+
+// Exclude Spring Boot's default logger (Logback)
+configurations {
+    all {
+        exclude group: 'ch.qos.logback', module: 'logback-classic'
+    }
 }
