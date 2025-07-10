@@ -1,4 +1,74 @@
-public static String buildQueryForTransaction(UUID rfsId){
-        String hexUUID = rfsId.toString().replace("-", "").toUpperCase();
-        return String.format("(SELECT m.* FROM MERCHANT_ORDER_PAYMENTS m, RECON_FILE_DTLS r WHERE r.ATRN_NUM = m.ATRN_NUM AND r.RFS_ID = HEXTORAW('%s'))", hexUUID);
-    }
+Got it! Here's the cleaned-up story point without the test case table — written clearly so that everyone (developers, testers, and project managers) can understand:
+
+
+---
+
+🧾 Story Title:
+
+Generate Payout CSV and Upload to SFTP in Date-Based Folder
+
+
+---
+
+📝 Story Description:
+
+The system should automatically handle merchant payout records that are marked as PENDING by:
+
+1. Fetching all records from the merchantAccountPayout table where the status is PENDING.
+
+
+2. Generating a CSV file with the fetched records. The file should be named using the pattern:
+payout_<currentDateTime>.csv
+Example: payout_20250710_103000.csv
+
+
+3. Uploading the CSV file to an SFTP server under a date-based folder structure:
+/payout/dd/MM/yyyy/
+For example: /payout/10/07/2025/payout_20250710_103000.csv
+
+
+4. If the folder for the current date does not exist on the SFTP server, the system should create it automatically.
+
+
+5. Once the file is successfully uploaded, the system should update the status of those payout records from PENDING to SUCCESS.
+
+
+6. If any step fails (CSV generation, SFTP upload, folder creation, DB update), the system should:
+
+Log the error clearly
+
+Leave the status as PENDING (i.e., no partial updates)
+
+
+
+
+
+---
+
+✅ Acceptance Criteria:
+
+Only PENDING records are considered.
+
+The generated CSV file should have correct data and format.
+
+A date-based folder should be created dynamically on the SFTP server (if not already present).
+
+File upload should complete successfully into the correct folder.
+
+Status of the records should be updated to SUCCESS only after successful upload.
+
+In case of any failure, no record should be marked as SUCCESS and errors must be logged.
+
+
+
+---
+
+Let me know if you'd like a follow-up:
+
+Java method outline for this process?
+
+Sample log messages?
+
+Example CSV output structure?
+
+
