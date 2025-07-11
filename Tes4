@@ -1,74 +1,69 @@
-Got it! Here's the cleaned-up story point without the test case table — written clearly so that everyone (developers, testers, and project managers) can understand:
+@Service
+public class SftpClientService {
 
+    @Value("${sftp.host}")
+    private String host;
 
----
+    @Value("${sftp.port}")
+    private int port;
 
-🧾 Story Title:
+    @Value("${sftp.username}")
+    private String username;
 
-Generate Payout CSV and Upload to SFTP in Date-Based Folder
+    @Value("${sftp.password}")
+    private String password;
 
+    @Value("${sftp.remote.base-dir}")
+    private String baseDir;
 
----
+    public void uploadFile(byte[] fileBytes, String remotePath, String fileName) {
+        ChannelSftp channelSftp = null;
+        Session session = null;
 
-📝 Story Description:
+        try {
+            JSch jsch = new JSch();
+            session = jsch.getSession(username, host, port);
+            session.setPassword(password);
+            session.setConfig("StrictHostKeyChecking", "no");
+            session.connect();
 
-The system should automatically handle merchant payout records that are marked as PENDING by:
+            channelSftp = (ChannelSftp) session.openChannel("sftp");
+            channelSftp.connect();
 
-1. Fetching all records from the merchantAccountPayout table where the status is PENDING.
+            String fullPath = baseDir + "/" + remotePath;
+            ensureRemotePathExists(channelSftp, fullPath);
 
+            channelSftp.cd(fullPath);
+            channelSftp.put(new ByteArrayInputStream(fileBytes), fileName);
 
-2. Generating a CSV file with the fetched records. The file should be named using the pattern:
-payout_<currentDateTime>.csv
-Example: payout_20250710_103000.csv
+        } catch (Exception e) {
+            throw new RuntimeException("SFTP Upload Failed", e);
+        } finally {
+            if (channelSftp != null) channelSftp.disconnect();
+            if (session != null) session.disconnect();
+        }
+    }
 
+    private void ensureRemotePathExists(ChannelSftp sftp, String path) throws SftpException {
+        String[] folders = path.split("/");
+        StringBuilder currentPath = new StringBuilder();
 
-3. Uploading the CSV file to an SFTP server under a date-based folder structure:
-/payout/dd/MM/yyyy/
-For example: /payout/10/07/2025/payout_20250710_103000.csv
+        for (String folder : folders) {
+            if (folder.isEmpty()) continue;
 
+            currentPath.append("/").append(folder);
+            if (!directoryExists(sftp, currentPath.toString())) {
+                sftp.mkdir(currentPath.toString());
+            }
+        }
+    }
 
-4. If the folder for the current date does not exist on the SFTP server, the system should create it automatically.
-
-
-5. Once the file is successfully uploaded, the system should update the status of those payout records from PENDING to SUCCESS.
-
-
-6. If any step fails (CSV generation, SFTP upload, folder creation, DB update), the system should:
-
-Log the error clearly
-
-Leave the status as PENDING (i.e., no partial updates)
-
-
-
-
-
----
-
-✅ Acceptance Criteria:
-
-Only PENDING records are considered.
-
-The generated CSV file should have correct data and format.
-
-A date-based folder should be created dynamically on the SFTP server (if not already present).
-
-File upload should complete successfully into the correct folder.
-
-Status of the records should be updated to SUCCESS only after successful upload.
-
-In case of any failure, no record should be marked as SUCCESS and errors must be logged.
-
-
-
----
-
-Let me know if you'd like a follow-up:
-
-Java method outline for this process?
-
-Sample log messages?
-
-Example CSV output structure?
-
-
+    private boolean directoryExists(ChannelSftp sftp, String path) {
+        try {
+            SftpATTRS attrs = sftp.lstat(path);
+            return attrs != null && attrs.isDir();
+        } catch (SftpException e) {
+            return false; // Path doesn't exist
+        }
+    }
+}
