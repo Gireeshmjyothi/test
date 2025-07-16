@@ -1,6 +1,58 @@
-@Query(value = """ 
-    SELECT map.*, maf.RFS_ID FROM
-    MERCHANT_ACCOUNT_PAYOUT map,
-    MERCHANT_ACCOUNT_FILE_WISE_PAYOUT maf
-    WHERE map.MAP_ID = maf.MAP_ID AND map.STATUS = :status
-    """, nativeQuery = true)
+Here’s a well-written GitLab story point for your issue:
+
+
+---
+
+Title:
+
+Publish RFS ID, MID, and Status to Summary File and Mark Payout as Successful
+
+
+---
+
+Description:
+
+As part of the payout process, we need to update the payout summary file with the following details for each processed record:
+
+RFS ID
+
+MID
+
+Payout Status
+
+
+Once the records are published successfully into the summary file, update the payout status as SUCCESS for those entries.
+
+
+---
+
+Acceptance Criteria:
+
+[ ] Fetch records with pending payout status.
+
+[ ] For each record, publish the RFS ID, MID, and current status to the summary file.
+
+[ ] After publishing, mark the payout status as SUCCESS in the database.
+
+[ ] Ensure proper logging and error handling in case of any failures.
+
+[ ] Summary file should follow the predefined format (CSV/Excel etc., if applicable).
+
+
+
+---
+
+Notes:
+
+The payout summary file will be used for reconciliation or audit purposes.
+
+Make sure idempotency is maintained to prevent duplicate status updates in case of retries.
+
+If a record fails during publishing, it should not be marked as SUCCESS.
+
+
+
+---
+
+Let me know if you want to include details like where the file is stored (e.g., SFTP path) or if this is part of a larger batch job.
+
