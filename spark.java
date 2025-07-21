@@ -44,3 +44,27 @@ Map<String, Dataset<Row>> classified = findMatchedUnmatchedAndDuplicateReconReco
 writeToStagingTable(classified.get("matched"), "RECON_STATUS_STAGE_MATCHED");
 writeToStagingTable(classified.get("others"), "RECON_STATUS_STAGE_OTHERS");
 updateReconStatusFromStage();
+
+public void updateReconStatusFromStage() {
+    // ✅ Matched - update RECON_STATUS & SETTLEMENT_STATUS
+    String mergeMatched = """
+        MERGE INTO RECON_FILE_DTLS tgt
+        USING RECON_STATUS_STAGE_MATCHED src
+        ON (tgt.RFD_ID = src.RFD_ID)
+        WHEN MATCHED THEN
+          UPDATE SET tgt.RECON_STATUS = src.RECON_STATUS,
+                     tgt.SETTLEMENT_STATUS = src.SETTLEMENT_STATUS
+    """;
+
+    // ✅ Unmatched & Duplicate - update only RECON_STATUS
+    String mergeOthers = """
+        MERGE INTO RECON_FILE_DTLS tgt
+        USING RECON_STATUS_STAGE_OTHERS src
+        ON (tgt.RFD_ID = src.RFD_ID)
+        WHEN MATCHED THEN
+          UPDATE SET tgt.RECON_STATUS = src.RECON_STATUS
+    """;
+
+    jdbcTemplate.update(mergeMatched);
+    jdbcTemplate.update(mergeOthers);
+}
