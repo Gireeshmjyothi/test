@@ -28,3 +28,62 @@ public class SFTPDownloadController {
         }
     }
 } u
+
+
+import com.jcraft.jsch.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.ByteArrayOutputStream;
+
+@Slf4j
+@Service
+public class SFTPService {
+
+    @Value("${sftp.host}")
+    private String sftpHost;
+
+    @Value("${sftp.port}")
+    private int sftpPort;
+
+    @Value("${sftp.username}")
+    private String sftpUsername;
+
+    @Value("${sftp.password}")
+    private String sftpPassword;
+
+    public byte[] downloadFile(String filePath, String fileName) {
+        Session session = null;
+        ChannelSftp sftpChannel = null;
+
+        try {
+            JSch jsch = new JSch();
+            session = jsch.getSession(sftpUsername, sftpHost, sftpPort);
+            session.setPassword(sftpPassword);
+            session.setConfig("StrictHostKeyChecking", "no");
+            session.connect();
+
+            Channel channel = session.openChannel("sftp");
+            channel.connect();
+            sftpChannel = (ChannelSftp) channel;
+
+            String fullPath = filePath.endsWith("/") ? filePath + fileName : filePath + "/" + fileName;
+            log.info("Downloading file from SFTP: {}", fullPath);
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            sftpChannel.get(fullPath, outputStream);
+
+            return outputStream.toByteArray();
+
+        } catch (SftpException e) {
+            throw new RuntimeException("File not found on SFTP server: " + e.getMessage(), e);
+        } catch (JSchException e) {
+            throw new RuntimeException("SFTP connection error: " + e.getMessage(), e);
+        } finally {
+            if (sftpChannel != null && sftpChannel.isConnected()) sftpChannel.disconnect();
+            if (session != null && session.isConnected()) session.disconnect();
+        }
+    }
+}
+    
