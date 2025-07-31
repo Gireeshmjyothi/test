@@ -1,89 +1,102 @@
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
+package com.example.controller;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
 @RestController
-@RequestMapping("/api/sftp")
-@RequiredArgsConstructor
-public class SFTPDownloadController {
-
-    private final SFTPService sftpService;
-
-    @GetMapping("/download")
-    public ResponseEntity<?> downloadFile(@RequestParam String filePath, @RequestParam String fileName) {
-        try {
-            byte[] fileData = sftpService.downloadFile(filePath, fileName);
-
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(fileData);
-
-        } catch (RuntimeException ex) {
-            return ResponseEntity
-                    .status(404)
-                    .body("Error downloading file: " + ex.getMessage());
-        }
-    }
-} u
-
-
-import com.jcraft.jsch.*;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-
-import java.io.ByteArrayOutputStream;
-
+@RequestMapping("/api/spark")
 @Slf4j
-@Service
-public class SFTPService {
+public class SparkSubmitController {
 
-    @Value("${sftp.host}")
-    private String sftpHost;
-
-    @Value("${sftp.port}")
-    private int sftpPort;
-
-    @Value("${sftp.username}")
-    private String sftpUsername;
-
-    @Value("${sftp.password}")
-    private String sftpPassword;
-
-    public byte[] downloadFile(String filePath, String fileName) {
-        Session session = null;
-        ChannelSftp sftpChannel = null;
-
+    @PostMapping("/submit")
+    public ResponseEntity<String> submitSparkJob() {
         try {
-            JSch jsch = new JSch();
-            session = jsch.getSession(sftpUsername, sftpHost, sftpPort);
-            session.setPassword(sftpPassword);
-            session.setConfig("StrictHostKeyChecking", "no");
-            session.connect();
+            String sparkHome = "/path/to/spark"; // e.g., /usr/local/spark
+            String jarPath = "/path/to/your-fat-jar.jar"; // e.g., /app/build/libs/spark-example-1.0-SNAPSHOT.jar
+            String mainClass = "com.example.sparkjob.SimpleSparkJob";
 
-            Channel channel = session.openChannel("sftp");
-            channel.connect();
-            sftpChannel = (ChannelSftp) channel;
+            ProcessBuilder builder = new ProcessBuilder(
+                    sparkHome + "/bin/spark-submit",
+                    "--class", mainClass,
+                    "--master", "local[*]",
+                    jarPath
+            );
 
-            String fullPath = filePath.endsWith("/") ? filePath + fileName : filePath + "/" + fileName;
-            log.info("Downloading file from SFTP: {}", fullPath);
+            builder.redirectErrorStream(true);
+            Process process = builder.start();
 
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            sftpChannel.get(fullPath, outputStream);
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    log.info(line);
+                }
+            }
 
-            return outputStream.toByteArray();
+            int exitCode = process.waitFor();
+            if (exitCode == 0) {
+                return ResponseEntity.ok("Spark job submitted successfully.");
+            } else {
+                return ResponseEntity.status(500).body("Spark job failed with exit code: " + exitCode);
+            }
 
-        } catch (SftpException e) {
-            throw new RuntimeException("File not found on SFTP server: " + e.getMessage(), e);
-        } catch (JSchException e) {
-            throw new RuntimeException("SFTP connection error: " + e.getMessage(), e);
-        } finally {
-            if (sftpChannel != null && sftpChannel.isConnected()) sftpChannel.disconnect();
-            if (session != null && session.isConnected()) session.disconnect();
+        } catch (Exception e) {
+            log.error("Error while submitting Spark job", e);
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
 }
-    
+
+package com.example.sparkjob;
+
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.apache.spark.sql.SparkSession;
+
+import java.net.URL;
+import java.nio.file.Paths;
+
+import static org.apache.spark.sql.functions.col;
+
+public class SimpleSparkJob {
+    public static void main(String[] args) {
+        SparkSession spark = SparkSession.builder()
+                .appName("Simple Spark Filter Job")
+                .master("local[*]") // for local testing
+                .getOrCreate();
+
+        try {
+            // Get CSV from resources
+            URL resource = SimpleSparkJob.class.getClassLoader().getResource("data.csv");
+            if (resource == null) {
+                throw new IllegalArgumentException("File not found!");
+            }
+            String filePath = Paths.get(resource.toURI()).toString();
+
+            // Read CSV
+            Dataset<Row> df = spark.read()
+                    .option("header", "true")
+                    .option("inferSchema", "true")
+                    .csv(filePath);
+
+            // Filter rows where amount > 1000
+            Dataset<Row> filtered = df.filter(col("amount").gt(1000));
+            filtered.show();
+
+            // Output to local folder
+            filtered.write()
+                    .option("header", "true")
+                    .mode("overwrite")
+                    .csv("output/filtered_data");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        spark.stop();
+    }
+}
