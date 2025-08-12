@@ -1,3 +1,16 @@
+Sure! Here's your revised method with the following updates:
+
+No RFD_ID in reconFileDataset — replaced with a generated row_num using monotonically_increasing_id() for ordering.
+
+matchWindow now orders by this row_num.
+
+Included merchantId from transactionDataset in the final matched/unmatched/duplicate datasets.
+
+Added merchantId to the final selected columns.
+
+Kept setting RF_ID from the method parameter reconFileId.
+
+
 import static org.apache.spark.sql.functions.*;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
@@ -34,6 +47,133 @@ public Map<String, Dataset<Row>> findMatchedUnmatchedAndDuplicateReconRecords(
 
     // Step 3.2: Join recon and txn on ATRN_NUM + DEBIT_AMT
     logger.info("Step-3.2: Performing join between recon and transaction data.");
+    Dataset<Row> joined = recon.join(txn,
+            col(String.format(reconFieldFormat, OperationsConstant.ATRN_NUM))
+                .equalTo(col(String.format(txnFieldFormat, OperationsConstant.ATRN_NUM)))
+                .and(col(String.format(reconFieldFormat, OperationsConstant.DEBIT_AMT))
+                .equalTo(col(String.format(txnFieldFormat, OperationsConstant.DEBIT_AMT)))),
+            "left_outer")
+        .withColumn(OperationsConstant.EXACT_MATCH,
+            when(col(String.format(txnFieldFormat, OperationsConstant.ATRN_NUM)).isNotNull(), lit(1)).otherwise(lit(0)))
+        .withColumn(OperationsConstant.MATCH_RANK,
+            when(col(OperationsConstant.EXACT_MATCH).equalTo(1), row_number().over(matchWindow)))
+        // Add merchantId from transactionDataset
+        .withColumn(OperationsConstant.MERCHANT_ID, col(String.format(txnFieldFormat, "merchantId")));
+
+    // Step 3.3: Find distinct matched ATRN_NUM
+    logger.info("Step-3.3: Find distinct matched ATRN_NUM.");
+    Dataset<Row> matchedAtrns = joined.filter(col(OperationsConstant.MATCH_RANK).equalTo(1))
+        .select(col(String.format(reconFieldFormat, OperationsConstant.ATRN_NUM)).alias(OperationsConstant.MATCHED_ATRN))
+        .distinct();
+
+    // Step 3.4: Re-join matched ATRN_NUM to mark duplicates
+    logger.info("Step-3.4: Re-join matched ATRN_NUM to mark duplicates");
+    Dataset<Row> withMatchedFlag = joined.join(matchedAtrns,
+            col(String.format(reconFieldFormat, OperationsConstant.ATRN_NUM))
+                .equalTo(col(OperationsConstant.MATCHED_ATRN)),
+            "left_outer")
+        .withColumn(OperationsConstant.ATRN_MATCHED, col(OperationsConstant.MATCHED_ATRN).isNotNull());
+
+    // Step 3.5: Apply classification logic
+    logger.info("Step-3.5: Applying classification logic to tag rows with status.");
+    Dataset<Row> finalStatus = withMatchedFlag.withColumn(OperationsConstant.RECON_STATUS,
+        when(col(OperationsConstant.EXACT_MATCH).equalTo(1).and(col(OperationsConstant.MATCH_RANK).equalTo(1)), lit(OperationsConstant.RECON_STATUS_MATCHED))
+        .when(col(OperationsConstant.EXACT_MATCH).equalTo(1).and(col(OperationsConstant.MATCH_RANK).gt(1)), lit(OperationsConstant.RECON_STATUS_DUPLICATE))
+        .when(col(OperationsConstant.EXACT_MATCH).equalTo(0).and(col(OperationsConstant.ATRN_MATCHED).equalTo(true)), lit(OperationsConstant.RECON_STATUS_DUPLICATE))
+        .otherwise(lit(OperationsConstant.RECON_STATUS_UNMATCHED)));
+
+    // Step 3.6: Filter Dataset for the matched, unmatched and duplicate Recon Data
+    logger.info("Step-3.6: Filter Dataset for the matched, unmatched and duplicate Recon Data");
+    Dataset<Row> matched = finalStatus
+        .filter(col(OperationsConstant.RECON_STATUS).equalTo(OperationsConstant.RECON_STATUS_MATCHED))
+        .withColumn(OperationsConstant.RECON_STATUS, lit(OperationsConstant.RECON_STATUS_MATCHED))
+        .withColumn(OperationsConstant.SETTLEMENT_STATUS,
+            when(col(OperationsConstant.SETTLEMENT_STATUS).isNull()
+                .or(col(OperationsConstant.SETTLEMENT_STATUS).equalTo(Status.PENDING.name())),
+                lit(OperationsConstant.SETTLEMENT_STATUS_SETTLED)))
+        .withColumn(OperationsConstant.RF_ID, lit(reconFileId.toString()))
+        .select(
+            col("row_num").alias(OperationsConstant.RFD_ID),
+            col(OperationsConstant.RECON_STATUS),
+            col(OperationsConstant.SETTLEMENT_STATUS),
+            col(OperationsConstant.RF_ID),
+            col(OperationsConstant.MERCHANT_ID)
+        );
+
+    Dataset<Row> unmatchedOrDuplicate = finalStatus
+        .filter(col(OperationsConstant.RECON_STATUS).isin(OperationsConstant.RECON_STATUS_UNMATCHED, OperationsConstant.RECON_STATUS_DUPLICATE))
+        .withColumn(OperationsConstant.RF_ID, lit(reconFileId.toString()))
+        .select(
+            col("row_num").alias(OperationsConstant.RFD_ID),
+            col(OperationsConstant.RECON_STATUS),
+            col(OperationsConstant.RF_ID),
+            col(OperationsConstant.MERCHANT_ID)
+        );
+
+    // Step 3.7: Return results as Map
+    Map<String, Dataset<Row>> result = new HashMap<>();
+    result.put(OperationsConstant.RECON_STATUS_MATCHED, matched);
+    result.put(OperationsConstant.OTHERS, unmatchedOrDuplicate);
+
+    return result;
+}
+
+
+---
+
+Notes:
+
+row_num is used as a surrogate for RFD_ID since the latter is missing.
+
+merchantId is pulled from the joined transaction dataset and included in final results.
+
+RF_ID is injected from method argument reconFileId.
+
+Adjust your OperationsConstant class if needed to include "merchantId" and "row_num" constants, or replace with strings directly.
+
+
+If you want me to help with that or anything else, just let me know!
+
+        when(col(OperationsConstant.EXACT_MATCH).equalTo(1).and(col(OperationsConstant.MATCH_RANK).equalTo(1)), lit(OperationsConstant.RECON_STATUS_MATCHED))
+        .when(col(OperationsConstant.EXACT_MATCH).equalTo(1).and(col(OperationsConstant.MATCH_RANK).gt(1)), lit(OperationsConstant.RECON_STATUS_DUPLICATE))
+        .when(col(OperationsConstant.EXACT_MATCH).equalTo(0).and(col(OperationsConstant.ATRN_MATCHED).equalTo(true)), lit(OperationsConstant.RECON_STATUS_DUPLICATE))
+        .otherwise(lit(OperationsConstant.RECON_STATUS_UNMATCHED)));
+
+    // Step 3.6: Filter Dataset for the matched, unmatched and duplicate Recon Data
+    logger.info("Step-3.6: Filter Dataset for the matched, unmatched and duplicate Recon Data");
+    Dataset<Row> matched = finalStatus
+        .filter(col(OperationsConstant.RECON_STATUS).equalTo(OperationsConstant.RECON_STATUS_MATCHED))
+        .withColumn(OperationsConstant.RECON_STATUS, lit(OperationsConstant.RECON_STATUS_MATCHED))
+        .withColumn(OperationsConstant.SETTLEMENT_STATUS,
+            when(col(OperationsConstant.SETTLEMENT_STATUS).isNull()
+                .or(col(OperationsConstant.SETTLEMENT_STATUS).equalTo(Status.PENDING.name())),
+                lit(OperationsConstant.SETTLEMENT_STATUS_SETTLED)))
+        .withColumn(OperationsConstant.RF_ID, lit(reconFileId.toString()))
+        .select(
+            col("row_num").alias(OperationsConstant.RFD_ID),
+            col(OperationsConstant.RECON_STATUS),
+            col(OperationsConstant.SETTLEMENT_STATUS),
+            col(OperationsConstant.RF_ID),
+            col(OperationsConstant.MERCHANT_ID)
+        );
+
+    Dataset<Row> unmatchedOrDuplicate = finalStatus
+        .filter(col(OperationsConstant.RECON_STATUS).isin(OperationsConstant.RECON_STATUS_UNMATCHED, OperationsConstant.RECON_STATUS_DUPLICATE))
+        .withColumn(OperationsConstant.RF_ID, lit(reconFileId.toString()))
+        .select(
+            col("row_num").alias(OperationsConstant.RFD_ID),
+            col(OperationsConstant.RECON_STATUS),
+            col(OperationsConstant.RF_ID),
+            col(OperationsConstant.MERCHANT_ID)
+        );
+
+    // Step 3.7: Return results as Map
+    Map<String, Dataset<Row>> result = new HashMap<>();
+    result.put(OperationsConstant.RECON_STATUS_MATCHED, matched);
+    result.put(OperationsConstant.OTHERS, unmatchedOrDuplicate);
+
+    return result;
+}
     Dataset<Row> joined = recon.join(txn,
             col(String.format(reconFieldFormat, OperationsConstant.ATRN_NUM))
                 .equalTo(col(String.format(txnFieldFormat, OperationsConstant.ATRN_NUM)))
