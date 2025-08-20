@@ -1,15 +1,22 @@
-public void writeDatasetIntoReconFileDetails(Dataset<Row> dataset, String tableName) {
-        dataset.repartition(40)
-                .write()
-                .format("jdbc")
-                .option("url", System.getProperty("dbUrl"))
-                .option("user", System.getProperty("dbUser"))
-                .option("password", System.getProperty("dbPassword"))
-                .option("driver", "oracle.jdbc.OracleDriver")
-                .option("dbtable", tableName)
-                .option("batchsize", "1000")
-                .option("numPartitions", "40")
-                .option("isolationLevel", "NONE")
-                .mode(SaveMode.Append)
-                .save();
+public Dataset<Row> readAndNormalizeTransaction(UUID rfId) {
+        String query = "MERCHANT_TXN"; // buildQueryForTransaction(rfId);
+        logger.info("Executing query for : {}", query);
+        return normalize(readFromDBWithFilter(query));
+    }
+
+    /**
+     * This method is used to normalise the dataset columns.
+     *
+     * @param dataset required dataset.
+     * @return normalised dataset.
+     */
+    public Dataset<Row> normalize(Dataset<Row> dataset) {
+        logger.info("Normalising required data.");
+        var columns = Arrays.asList(dataset.columns());
+        for (String col : MAPPING_COLUMNS.keySet()) {
+            if (columns.contains(col)) {
+                dataset = dataset.withColumn(col, functions.trim(dataset.col(col)));
+            }
+        }
+        return dataset;
     }
