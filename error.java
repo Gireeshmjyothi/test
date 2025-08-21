@@ -1,11 +1,35 @@
-Dataset<Row> df = dataset.persist(); // if reused
+import static org.apache.spark.sql.functions.*;
+import org.apache.spark.sql.Row;
 
-long[] bounds = df.agg(expr("min(RFD_ID) AS mn"), expr("max(RFD_ID) AS mx"))
-                  .as(Encoders.tuple(Encoders.LONG(), Encoders.LONG()))
-                  .first();
+Dataset<Row> df = dataset; // your incoming DF
 
-df = df.repartition(96, functions.col("RFD_ID")); // match cluster parallelism
+// 1) Verify schema
+df.printSchema();
 
+// 2) Ensure numeric column for partitioning
+String partCol = "RFD_ID";
+if (!df.schema().apply(partCol).dataType().typeName().matches("(?i)byte|short|int|long|float|double|decimal")) {
+  df = df.withColumn("RFD_ID_NUM", col(partCol).cast("long"));
+  partCol = "RFD_ID_NUM";
+}
+
+// 3) Handle empty DF
+long cnt = df.count();
+if (cnt == 0L) {
+  logger.warn("No rows to write."); 
+  return;
+}
+
+// 4) Compute bounds safely
+Row b = df.agg(min(col(partCol)).alias("mn"), max(col(partCol)).alias("mx")).first();
+long lower = b.getAs("mn");
+long upper = b.getAs("mx");
+
+// 5) Repartition on the actual column used
+int partitions = 96; // set to executors*cores
+df = df.repartition(partitions, col(partCol));
+
+// 6) Write
 df.write()
   .format("jdbc")
   .option("url", System.getProperty("dbUrl"))
@@ -15,10 +39,9 @@ df.write()
   .option("dbtable", tableName)
   .option("batchsize", "50000")
   .option("isolationLevel", "NONE")
-  .option("partitionColumn", "RFD_ID")
-  .option("lowerBound", String.valueOf(bounds[0]))
-  .option("upperBound", String.valueOf(bounds[1]))
-  .option("numPartitions", "96")
-  .option("sessionInitStatement", "ALTER SESSION ENABLE PARALLEL DML")
+  .option("partitionColumn", partCol)     // must match the numeric column above
+  .option("lowerBound", String.valueOf(lower))
+  .option("upperBound", String.valueOf(upper))
+  .option("numPartitions", String.valueOf(partitions))
   .mode(SaveMode.Append)
   .save();
