@@ -1,86 +1,98 @@
-private Dataset<Row> classifyReconRecords(Dataset<Row> transactionDataset,
-                                          Dataset<Row> reconFileDataset,
-                                          UUID reconFileId) {
+public Object submitSparkJob(String namespace, String jobName, SparkSubmitDto sparkSubmitDto) {
+        logger.info("Submit job started for jobName: {}, namespace: {}, sparkSubmitDto: {}",
+                jobName, namespace, sparkSubmitDto);
 
-    final String reconFieldFormat = "recon.%s";
-    final String txnFieldFormat = "txn.%s";
+        CustomObjectsApi customObjectsApi = new CustomObjectsApi(client);
 
-    Dataset<Row> recon = reconFileDataset
-            .withColumn("ROW_NUMBER", monotonically_increasing_id())
-            .alias("recon");
+        // Convert DTO → SparkApplication spec (as Map)
+        Map<String, Object> sparkApp = sparkJobMapper.toSparkApplicationSpec(sparkSubmitDto, jobName, namespace);
 
-    Dataset<Row> txn = transactionDataset.alias("txn");
+        try {
+            CustomObjectsApi.APIcreateNamespacedCustomObjectRequest request =
+                    customObjectsApi.createNamespacedCustomObject(
+                    sparkSubmitDto.getGroup(),       // from DTO
+                    sparkSubmitDto.getVersion(),     // from DTO
+                    namespace,
+                    "sparkapplications",             // CRD plural
+                    sparkApp
+            );
 
-    // Window to tag first match per ATRN_NUM + DEBIT_AMT
-    WindowSpec matchWindow = Window
-            .partitionBy(col(String.format(reconFieldFormat, ATRN_NUM)))
-            .orderBy(col("ROW_NUMBER"));
+            logger.info("Spark job [{}] submitted successfully in namespace [{}]", jobName, namespace);
+            return request.execute();
 
-    // Join recon and txn on ATRN_NUM
-    Dataset<Row> joined = recon.join(txn,
-            col(String.format(reconFieldFormat, ATRN_NUM))
-                    .equalTo(col(String.format(txnFieldFormat, ATRN_NUM))),
-            "left_outer")
-            .withColumn("EXACT_MATCH",
-                    when(col(String.format(txnFieldFormat, ATRN_NUM)).isNotNull()
-                            .and(col(String.format(reconFieldFormat, DEBIT_AMT))
-                                    .equalTo(col(String.format(txnFieldFormat, TXN_AMOUNT)))), lit(1))
-                    .otherwise(lit(0)))
-            .withColumn("MATCH_RANK",
-                    when(col("EXACT_MATCH").equalTo(1), row_number().over(matchWindow)))
-            // Always take merchantId from txn if ATRN exists
-            .withColumn(MERCHANT_ID, col(String.format(txnFieldFormat, MERCHANT_ID)));
+        } catch (Exception e) {
+            logger.error("Unexpected exception during Spark job submission", e);
+            return e.getMessage();
+        }
+    }
 
-    // Identify matched ATRN_NUM
-    Dataset<Row> matchedAtrns = joined.filter(col("MATCH_RANK").equalTo(1))
-            .select(col(String.format(reconFieldFormat, ATRN_NUM)).alias("MATCHED_ATRN"))
-            .distinct();
 
-    // Flag ATRN matched but possibly debit mismatch
-    Dataset<Row> withMatchedFlag = joined.join(matchedAtrns,
-                    col(String.format(reconFieldFormat, ATRN_NUM)).equalTo(col("MATCHED_ATRN")),
-                    "left_outer")
-            .withColumn("IS_ATRN_MATCHED", col("MATCHED_ATRN").isNotNull());
+Map<String, Object> toSparkApplicationSpec(SparkSubmitDto sparkSubmitDto, String jobName, String namespace) {
+        Map<String, Object> sparkApp = new HashMap<>();
 
-    // Apply classification logic
-    Dataset<Row> finalStatus = withMatchedFlag.withColumn(RECON_STATUS,
-            when(col("EXACT_MATCH").equalTo(1).and(col("MATCH_RANK").equalTo(1)), lit(RECON_STATUS_MATCHED))
-            .when(col("EXACT_MATCH").equalTo(1).and(col("MATCH_RANK").gt(1)), lit(RECON_STATUS_DUPLICATE))
-            .when(col("EXACT_MATCH").equalTo(0).and(col("IS_ATRN_MATCHED").equalTo(true)), lit(RECON_STATUS_DUPLICATE))
-            .otherwise(lit(RECON_STATUS_UNMATCHED))
-    );
+        // Metadata
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("name", jobName);
+        metadata.put("namespace", namespace);
 
-    // Add remark column
-    finalStatus = finalStatus.withColumn("REMARK",
-            when(col(RECON_STATUS).equalTo(RECON_STATUS_UNMATCHED)
-                    .and(col(String.format(txnFieldFormat, ATRN_NUM)).isNull()), "ATRN missing")
-            .when(col(RECON_STATUS).equalTo(RECON_STATUS_UNMATCHED)
-                    .and(col(String.format(txnFieldFormat, ATRN_NUM)).isNotNull()
-                            .and(col(String.format(reconFieldFormat, DEBIT_AMT))
-                                    .notEqual(col(String.format(txnFieldFormat, TXN_AMOUNT))))), "Debit amount mismatch")
-            .otherwise(lit(null))
-    );
+        sparkApp.put("apiVersion", sparkSubmitDto.getApiVersion());
+        sparkApp.put("kind", "SparkApplication");
+        sparkApp.put("metadata", metadata);
 
-    // Add RF_ID, CREATED_DATE, UPDATED_DATE
-    finalStatus = finalStatus
-            .withColumn(RF_ID, lit(reconFileId.toString().replace("-", "")))
-            .withColumn("CREATED_DATE", unix_timestamp(current_timestamp()).cast(DataTypes.LongType)
-                    .multiply(1000).plus(monotonically_increasing_id().mod(1000)))
-            .withColumn("UPDATED_DATE", unix_timestamp(current_timestamp()).cast(DataTypes.LongType)
-                    .multiply(1000).plus(monotonically_increasing_id().mod(1000)));
+        // Spec
+        Map<String, Object> spec = new HashMap<>();
+        spec.put("type", sparkSubmitDto.getType());
+        spec.put("mode", sparkSubmitDto.getMode());
+        spec.put("image", sparkSubmitDto.getImage());
+        spec.put("mainClass", sparkSubmitDto.getMainClass());
+        spec.put("mainApplicationFile", sparkSubmitDto.getMainApplicationFile());
+        spec.put("arguments", sparkSubmitDto.getArguments());
+        spec.put("serviceAccount", sparkSubmitDto.getServiceAccount());
 
-    // Select final columns
-    Dataset<Row> result = finalStatus.select(
-            col(String.format(reconFieldFormat, ATRN_NUM)),
-            col(String.format(reconFieldFormat, DEBIT_AMT)),
-            col(RECON_STATUS),
-            col(RF_ID),
-            col(MERCHANT_ID),
-            col("ROW_NUMBER"),
-            col("REMARK"),
-            col("CREATED_DATE"),
-            col("UPDATED_DATE")
-    );
+        // Driver
+        Map<String, Object> driver = new HashMap<>();
+        driver.put("cores", sparkSubmitDto.getDriverCores());
+        driver.put("memory", sparkSubmitDto.getDriverMemory());
+        driver.put("serviceAccount", sparkSubmitDto.getServiceAccount()); // recommended to set in driver spec too
+        spec.put("driver", driver);
 
-    return result;
+        // Executor
+        Map<String, Object> executor = new HashMap<>();
+        executor.put("cores", sparkSubmitDto.getExecutorCores());
+        executor.put("instances", sparkSubmitDto.getExecutorInstances());
+        executor.put("memory", sparkSubmitDto.getExecutorMemory());
+        spec.put("executor", executor);
+
+        sparkApp.put("spec", spec);
+
+
+Message: 
+HTTP response code: 403
+HTTP response body: {
+    "kind": "Status",
+    "apiVersion": "v1",
+    "metadata": {},
+    "status": "Failure",
+    "message": "sparkapplications.sparkoperator.k8s.io is forbidden: User \"system:serviceaccount:dev-rns:default\" cannot create resource \"sparkapplications\" in API group \"sparkoperator.k8s.io\" in the namespace \"dev-spark\"",
+    "reason": "Forbidden",
+    "details": {
+        "group": "sparkoperator.k8s.io",
+        "kind": "sparkapplications"
+    },
+    "code": 403
+}
+
+HTTP response headers: {audit-id=[e7f217ee-8d9d-4008-b373-998dbb9885ef
+    ], cache-control=[no-cache, private
+    ], content-length=[
+        397
+    ], content-type=[application/json
+    ], date=[Mon,
+        01 Sep 2025 11: 27: 17 GMT
+    ], strict-transport-security=[max-age=31536000; includeSubDomains; preload
+    ], x-content-type-options=[nosniff
+    ], x-kubernetes-pf-flowschema-uid=[
+        229489e7-103f-47ec-b39f-46b3b34b3b28
+    ], x-kubernetes-pf-prioritylevel-uid=[c66b97b3-078b-4822-af28-524fea32adac
+    ]
 }
