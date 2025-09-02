@@ -63,3 +63,7 @@ public String submitSparkJob(SparkSubmitDto request, String nameSpace) throws Ex
         Configuration.setDefaultApiClient(client);
         return client;
     }
+
+
+Type parameter 'java. lang. Object' is not within its bound; should implement 'io. kubernetes. client. common. KubernetesObject'
+        
