@@ -136,3 +136,58 @@ public class SparkJobRequest {
     private String executorMemory;
 }
 
+import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.Configuration;
+import io.kubernetes.client.openapi.apis.CoreV1Api;
+import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.util.ClientBuilder;
+import okhttp3.OkHttpClient;
+import org.springframework.stereotype.Service;
+
+import java.util.Collections;
+import java.util.concurrent.TimeUnit;
+
+@Service
+public class SparkJobService {
+
+    public String submitJob(SparkJobRequest req) throws Exception {
+        // Build ApiClient dynamically
+        ApiClient client = new ClientBuilder()
+                .setBasePath(req.getMasterUrl())
+                .setVerifyingSsl(false) // disable SSL verify if self-signed certs
+                .setAuthentication(new io.kubernetes.client.util.credentials.AccessTokenAuthentication(req.getBearerToken()))
+                .build();
+
+        // increase timeout
+        OkHttpClient httpClient = client.getHttpClient().newBuilder()
+                .readTimeout(0, TimeUnit.SECONDS)
+                .build();
+        client.setHttpClient(httpClient);
+
+        Configuration.setDefaultApiClient(client);
+
+        // Example: create a Pod (you’ll replace with SparkApplication CRD later)
+        V1Pod pod = new V1Pod()
+                .metadata(new V1ObjectMeta()
+                        .name("spark-job-driver-" + System.currentTimeMillis())
+                        .namespace(req.getNamespace()))
+                .spec(new V1PodSpec()
+                        .serviceAccountName(req.getServiceAccount())
+                        .containers(Collections.singletonList(
+                                new V1Container()
+                                        .name("spark-driver")
+                                        .image(req.getImage())
+                                        .args(req.getArguments())
+                                        .resources(new V1ResourceRequirements()
+                                                .putRequestsItem("cpu", new Quantity(req.getDriverCores()))
+                                                .putRequestsItem("memory", new Quantity(req.getDriverMemory()))
+                                        )
+                        ))
+                        .restartPolicy("Never"));
+
+        CoreV1Api api = new CoreV1Api();
+        V1Pod createdPod = api.createNamespacedPod(req.getNamespace(), pod, null, null, null, null);
+
+        return "Pod Created: " + createdPod.getMetadata().getName();
+    }
+}
