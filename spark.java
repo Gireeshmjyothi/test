@@ -1,34 +1,34 @@
-ObjectMapper mapper = new ObjectMapper();
-ObjectNode sparkApp = mapper.createObjectNode();
-sparkApp.put("apiVersion", request.getApiVersion());
-sparkApp.put("kind", "SparkApplication");
+import org.apache.spark.launcher.SparkLauncher;
 
-ObjectNode metadata = sparkApp.putObject("metadata");
-metadata.put("name", "spark-job-" + System.currentTimeMillis());
-metadata.put("namespace", nameSpace);
+public class SparkK8sJobSubmitter {
 
-ObjectNode spec = sparkApp.putObject("spec");
-spec.put("type", request.getType());
-spec.put("mode", request.getMode());
-spec.put("image", request.getImage());
-spec.put("mainClass", request.getMainClass());
-spec.put("mainApplicationFile", request.getMainApplicationFile());
-spec.putArray("arguments").addAll(
-        mapper.valueToTree(request.getArguments())
-);
-spec.put("serviceAccount", request.getServiceAccount());
+    public static void main(String[] args) throws Exception {
+        Process spark = new SparkLauncher()
+            .setAppResource("local:///opt/spark-apps/my-spark-job.jar") // inside Docker image
+            .setMainClass("com.example.MainJob")
+            .setMaster("k8s://https://<K8S-API-SERVER>:6443")
+            .setDeployMode("cluster")
+            .setConf("spark.executor.instances", "2")
+            .setConf("spark.kubernetes.container.image", "my-docker-repo/my-spark-image:latest")
+            .setConf("spark.kubernetes.namespace", "spark")
+            .setConf("spark.kubernetes.authenticate.driver.serviceAccountName", "spark-sa")
+            .addAppArgs("arg1", "arg2")
+            .launch();
 
-ObjectNode driver = spec.putObject("driver");
-driver.put("cores", request.getDriverCores());
-driver.put("memory", request.getDriverMemory());
-driver.put("serviceAccount", request.getServiceAccount());
+        // Capture logs
+        new Thread(() -> {
+            try (var reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(spark.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println("[Spark Output] " + line);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
 
-ObjectNode executor = spec.putObject("executor");
-executor.put("cores", request.getExecutorCores());
-executor.put("instances", request.getExecutorInstances());
-executor.put("memory", request.getExecutorMemory());
-
-// wrap into DynamicKubernetesObject
-DynamicKubernetesObject crd = new DynamicKubernetesObject(sparkApp);
-
-sparkApi.create(crd);
+        int exitCode = spark.waitFor();
+        System.out.println("Spark job finished with exit code: " + exitCode);
+    }
+}
