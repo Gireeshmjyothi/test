@@ -44,20 +44,9 @@ spark:
     spark.eventLog.enabled: "true"
     spark.sql.adaptive.enabled: "true"
     spark.sql.adaptive.coalescePartitions.enabled: "true"
-    spark.kubernetes.driver.env.rfId: "1A6CF13CDF224845A15AF740E2716015"        "spark.kubernetes.authenticate.driver.serviceAccountName": "spark-sa",
-        "spark.kubernetes.executor.serviceAccount": "spark-sa",
-        "spark.kubernetes.namespace": "dev-spark",
-        "spark.kubernetes.driver.label.app": "spark-demo",
-        "spark.kubernetes.executor.label.app": "spark-demo",
-        "spark.kubernetes.driver.label.test": "validation",
-        "spark.kubernetes.executor.label.test": "validation",
-        "spark.eventLog.enabled": "true",
-        "spark.sql.adaptive.enabled": "true",
-        "spark.sql.adaptive.coalescePartitions.enabled": "true",
-        "spark.kubernetes.driver.env.rfId": "1A6CF13CDF224845A15AF740E2716015"
-    }
-}
-      
+    spark.kubernetes.driver.env.rfId: "1A6CF13CDF224845A15AF740E2716015"
+
+
 package com.example.config;
 
 import lombok.Data;
@@ -99,4 +88,5 @@ public class SparkConfig {
         private String name;
         private String value;
     }
-      }
+}
+    
