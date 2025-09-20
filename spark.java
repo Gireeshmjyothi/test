@@ -1,92 +1,92 @@
-spark:
-  group: "spark.apache.org"
-  version: "v1beta1"
-  type: "Java"
-  mode: "ClusterMode"
-  image: "registry.dev.sbiepay.sbi:8443/spark/sparkrecon:4.0.0_12092025v2"
-  mainClass: "com.epay.operations.recon.ReconSparkAppMain"
-  mainApplicationFile: "local:///opt/spark/work-dir/recon-spark-job-0.0.1.jar"
-  arguments: []
-  serviceAccount: "spark-sa"
-  driverCores: "1"
-  driverMemory: "512m"
-  executorCores: "1"
-  executorInstances: "2"
-  executorMemory: "1g"
+plugins {
+    id 'java'
+    id 'application'
+}
 
-  labels:
-    app: "spark-demo"
-    test: "validation"
-    version: "4.0.0"
+group = 'com.epay'
+version = "${version_recon_spark_job}"
+sourceCompatibility = JavaLanguageVersion.of(21)
+targetCompatibility = JavaLanguageVersion.of(21)
+ext {
+    mainMethodClass = 'com.epay.operations.recon.ReconSparkAppMain'
+    destDir = 'libs'
+}
+application {
+    mainClass = "${mainMethodClass}"
+}
 
-  env:
-    - name: "rfId"
-      value: "1A6CF13CDF224845A15AF740E2716015"
+tasks.register('fatJar', Jar) {
+    manifest {
+        attributes 'Main-Class': "${mainMethodClass}"
+    }
+    archiveClassifier = ''
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    zip64 true
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    with jar
+    destinationDirectory = file("${rootProject.projectDir}/${destDir}")
+    exclude 'META-INF/*.SF'
+    exclude 'META-INF/*.DSA'
+    exclude 'META-INF/*.RSA'
+}
 
-  extraJavaOptions: "-DrfId=1A6CF13CDF224845A15AF740E2716015"
-  sparkVersion: "4.0.0"
+build.finalizedBy(fatJar)
 
-  sparkConf:
-    spark.kubernetes.container.image: "registry.dev.sbiepay.sbi:8443/spark/sparkrecon:4.0.0_12092025v2"
-    spark.kubernetes.container.image.pullPolicy: "Always"
-    spark.driver.memory: "512m"
-    spark.driver.cores: "1"
-    spark.executor.memory: "512m"
-    spark.executor.cores: "1"
-    spark.executor.instances: "2"
-    spark.kubernetes.authenticate.driver.serviceAccountName: "spark-sa"
-    spark.kubernetes.executor.serviceAccount: "spark-sa"
-    spark.kubernetes.namespace: "dev-spark"
-    spark.kubernetes.driver.label.app: "spark-demo"
-    spark.kubernetes.executor.label.app: "spark-demo"
-    spark.kubernetes.driver.label.test: "validation"
-    spark.kubernetes.executor.label.test: "validation"
-    spark.eventLog.enabled: "true"
-    spark.sql.adaptive.enabled: "true"
-    spark.sql.adaptive.coalescePartitions.enabled: "true"
-    spark.kubernetes.driver.env.rfId: "1A6CF13CDF224845A15AF740E2716015"
-
-
-package com.example.config;
-
-import lombok.Data;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
-
-import java.util.List;
-import java.util.Map;
-
-@Data
-@Configuration
-@ConfigurationProperties(prefix = "spark")
-public class SparkConfig {
-
-    private String group;
-    private String version;
-    private String type;
-    private String mode;
-    private String image;
-    private String mainClass;
-    private String mainApplicationFile;
-    private List<String> arguments;
-    private String serviceAccount;
-    private String driverCores;
-    private String driverMemory;
-    private String executorCores;
-    private String executorInstances;
-    private String executorMemory;
-
-    private Map<String, String> labels;
-    private List<EnvVar> env;
-
-    private String extraJavaOptions;
-    private String sparkVersion;
-    private Map<String, String> sparkConf;
-
-    @Data
-    public static class EnvVar {
-        private String name;
-        private String value;
+repositories {
+    mavenCentral()
+    maven {//To download ePay2.0 utilities dependencies
+        url "https://gitlab.epay.sbi/api/v4/projects/16/packages/maven"
+        credentials(PasswordCredentials) {
+            username = project.findProperty("gitlab.username")?: System.getenv("CI_USERNAME")
+            password = project.findProperty("gitlab.token")?: System.getenv("CI_JOB_TOKEN")
+        }
+        authentication {
+            basic(BasicAuthentication)
+        }
     }
 }
-    
+
+configurations.configureEach {
+    exclude group: 'log4j', module: 'log4j'
+}
+
+dependencies {
+    // Spring Core
+    implementation "org.springframework:spring-context:${spring}"
+    implementation "org.springframework:spring-jdbc:${spring}"
+    implementation "com.oracle.database.jdbc:ojdbc11:${oracle_driver}"
+    implementation "org.springframework:spring-webflux:${web_flux}"
+    implementation "org.springframework:spring-web:${web_flux}"
+    implementation "io.projectreactor.netty:reactor-netty-http:1.2.10"
+
+    implementation "com.sbi.epay:logging-service:${epay_logging}"
+    implementation "ch.qos.logback:logback-classic:${logback_classic}"
+
+
+    implementation "org.apache.spark:spark-core_2.13:${apache_spark}"
+
+    //Excel
+    implementation("com.crealytics:spark-excel_2.13:${spark_excel}")
+
+    //Hadoop-aws
+    implementation("org.apache.hadoop:hadoop-aws:${hadoop_aws}")
+
+    //AWS SDK
+    implementation("com.amazonaws:aws-java-sdk-bundle:${aws_java_sdk}")
+
+    // Lombok
+    compileOnly "org.projectlombok:lombok:${lombok}"
+    compileOnly "org.mapstruct:mapstruct:${mapstruct}"
+    compileOnly "org.apache.spark:spark-sql_2.13:${apache_spark}"
+
+    annotationProcessor "org.projectlombok:lombok:${lombok}"
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstruct}"
+
+
+}
+
+test {
+    useJUnitPlatform()
+}
