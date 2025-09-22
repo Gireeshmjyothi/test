@@ -1,3 +1,4 @@
+
 public FileConfigDto findFileConfigById(UUID configId) {
     logger.info("Fetching bank config from admin service: {}", configId);
 
@@ -19,19 +20,20 @@ public FileConfigDto findFileConfigById(UUID configId) {
                     // ✅ Success
                     return response.bodyToMono(new ParameterizedTypeReference<OpsResponse<BankConfigFileResponse>>() {});
                 } else {
-                    // ❌ Error → Convert to ErrorDto
+                    // ❌ Error → Log and return null
                     return response.bodyToMono(new ParameterizedTypeReference<ErrorDto>() {})
-                            .flatMap(errorDto -> {
-                                logger.error("Error from admin service: status={}, message={}", 
-                                             response.statusCode(), errorDto.getMessage());
-                                return Mono.error(new CustomAdminServiceException(
-                                        response.statusCode(),
-                                        errorDto.getMessage()
-                                ));
-                            });
+                            .doOnNext(errorDto -> 
+                                    logger.error("Admin service error: status={}, message={}", 
+                                            response.statusCode(), errorDto.getMessage()))
+                            .then(Mono.empty()); // return empty instead of throwing
                 }
             })
             .block();
+
+    if (bankConfigResponse == null || bankConfigResponse.getData().isEmpty()) {
+        logger.warn("No bank config found for configId={}", configId);
+        return null;
+    }
 
     return bankConfigMapper.mapToDto(
             Objects.requireNonNull(validateResponse(bankConfigResponse))
