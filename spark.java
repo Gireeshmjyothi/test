@@ -1,17 +1,29 @@
-com.fasterxml.jackson.databind.exc.InvalidDefinitionException: Cannot construct instance of `com.epay.operations.recon.spark.dto.ErrorDto` (no Creators, like default constructor, exist): cannot deserialize from Object value (no delegate- or property-based Creator)
- at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 24] (through reference chain: com.epay.operations.recon.spark.externalservice.model.response.OpsResponse["errors"]->java.util.ArrayList[0])
+@Bean
+public WebClient webClient(WebClient.Builder builder) {
+    HttpClient httpClient = HttpClient.create()
+            // Connection timeout (ms)
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)
+            // Response timeout (how long to wait for the server to send response headers)
+            .responseTimeout(Duration.ofSeconds(60))
+            // Add read/write timeouts on the connection
+            .doOnConnected(conn -> 
+                conn.addHandlerLast(new ReadTimeoutHandler(60))
+                    .addHandlerLast(new WriteTimeoutHandler(60))
+            )
+            // Your existing SSL setup
+            .secure(sslContextSpec -> {
+                try {
+                    sslContextSpec.sslContext(
+                        SslContextBuilder.forClient()
+                            .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                            .build()
+                    );
+                } catch (SSLException e) {
+                    throw new RuntimeException(e);
+                }
+            });
 
-public FileConfigDto findFileConfigById(UUID configId) {
-        logger.info("Fetching bank config from admin service: ", configId);
-        URI uri = URI.create(reconConfig.getReconProperties().getAdminServiceBasePath() + ADMIN_END_POINT + configId);
-        logger.info("Uri : [{}]", uri);
-        OpsResponse<BankConfigFileResponse> bankConfigResponse = webClient.post()
-                .uri(uri)
-                .headers(httpHeaders -> httpHeaders.set(HttpHeaders.ORIGIN, reconConfig.getReconProperties().getAdminServiceOrigin()))
-                .exchangeToMono(response -> response.bodyToMono(new ParameterizedTypeReference<OpsResponse<BankConfigFileResponse>>() {
-                }))
-                .block();
-
-        return bankConfigMapper.mapToDto(Objects.requireNonNull(validateResponse(bankConfigResponse)).getData().getFirst());
-
-    }
+    return builder
+            .clientConnector(new ReactorClientHttpConnector(httpClient))
+            .build();
+}
