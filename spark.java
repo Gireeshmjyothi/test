@@ -1,29 +1,26 @@
-@Bean
-public WebClient webClient(WebClient.Builder builder) {
-    HttpClient httpClient = HttpClient.create()
-            // Connection timeout (ms)
-            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 30000)
-            // Response timeout (how long to wait for the server to send response headers)
-            .responseTimeout(Duration.ofSeconds(60))
-            // Add read/write timeouts on the connection
-            .doOnConnected(conn -> 
-                conn.addHandlerLast(new ReadTimeoutHandler(60))
-                    .addHandlerLast(new WriteTimeoutHandler(60))
-            )
-            // Your existing SSL setup
-            .secure(sslContextSpec -> {
-                try {
-                    sslContextSpec.sslContext(
-                        SslContextBuilder.forClient()
-                            .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                            .build()
-                    );
-                } catch (SSLException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+import java.io.*;
+import java.nio.file.*;
 
-    return builder
-            .clientConnector(new ReactorClientHttpConnector(httpClient))
-            .build();
+public class FileUtil {
+
+    // Write InputStream to root directory
+    public static String writeToRoot(InputStream inputStream, String fileName) throws IOException {
+        // For Linux/Mac: "/" ; For Windows: "C:\\"
+        String rootDir = System.getProperty("os.name").toLowerCase().contains("win") ? "C:\\" : "/";
+        
+        Path filePath = Paths.get(rootDir, fileName);
+
+        // Copy InputStream to file
+        Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+
+        return filePath.toAbsolutePath().toString();
+    }
+
+    // Delete file from root directory
+    public static void deleteFromRoot(String fileName) throws IOException {
+        String rootDir = System.getProperty("os.name").toLowerCase().contains("win") ? "C:\\" : "/";
+        Path filePath = Paths.get(rootDir, fileName);
+
+        Files.deleteIfExists(filePath);
+    }
 }
