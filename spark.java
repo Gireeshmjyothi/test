@@ -1,26 +1,17 @@
-import java.io.*;
-import java.nio.file.*;
+@Bean
+    public SparkSession sparkSession() {
+        SparkSession.Builder sparkSession = SparkSession.builder()
+                .appName("operations-recon-spark-service");
 
-public class FileUtil {
-
-    // Write InputStream to root directory
-    public static String writeToRoot(InputStream inputStream, String fileName) throws IOException {
-        // For Linux/Mac: "/" ; For Windows: "C:\\"
-        String rootDir = System.getProperty("os.name").toLowerCase().contains("win") ? "C:\\" : "/";
-        
-        Path filePath = Paths.get(rootDir, fileName);
-
-        // Copy InputStream to file
-        Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
-
-        return filePath.toAbsolutePath().toString();
+        if (LOCAL.equalsIgnoreCase(reconProperties.getEnv())) {
+            sparkSession = sparkSession.master(reconProperties.getSparkMaster());
+        } else {
+            sparkSession = sparkSession
+                    .master(reconProperties.getSparkMaster())
+                    .config("spark.hadoop.fs.s3a.endpoint", reconProperties.getAwsUrl())
+                    .config("spark.hadoop.fs.s3a.endpoint.region", reconProperties.getAwsRegion())
+                    .config("spark.hadoop.fs.s3a.access.key", reconProperties.getAwsKey())
+                    .config("spark.hadoop.fs.s3a.secret.key", reconProperties.getAwsSecret());
+        }
+        return sparkSession.getOrCreate();
     }
-
-    // Delete file from root directory
-    public static void deleteFromRoot(String fileName) throws IOException {
-        String rootDir = System.getProperty("os.name").toLowerCase().contains("win") ? "C:\\" : "/";
-        Path filePath = Paths.get(rootDir, fileName);
-
-        Files.deleteIfExists(filePath);
-    }
-}
