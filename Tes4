@@ -1,47 +1,141 @@
-public void validateOtpValidationRequest(OtpValidationRequest otpValidationRequest) {
-        logger.debug("User OTP validation start for {}", otpValidationRequest);
-        errorDtoList = new ArrayList<>();
-        checkMandatoryField(otpValidationRequest.getMobileNumber(), "mobileNumber");
-        checkMandatoryField(otpValidationRequest.getRequestId(), "requestId");
-        checkMandatoryField(otpValidationRequest.getRequestType(), "requestType");
-        checkMandatoryField(otpValidationRequest.getOtp(), "otp");
+package com.epay.reporting.validator;
 
-        throwIfErrors();
+import com.epay.reporting.dao.OtpManagementDao;
+import com.epay.reporting.dto.ErrorDto;
+import com.epay.reporting.entity.OtpManagement;
+import com.epay.reporting.exception.ReportingException;
+import com.epay.reporting.model.request.OtpValidationRequest;
+import com.epay.reporting.util.DateTimeUtils;
+import com.epay.reporting.util.constants.ErrorConstants;
+import com.epay.reporting.util.constants.MerchantConstant;
+import com.epay.reporting.util.enums.RequestType;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
 
-        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getMobileNumber(), "mobileNumber");
-        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getRequestId(), "requestId");
-        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getRequestType(), "requestType");
-        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getOtp(), "otp");
-        logger.debug("validateFieldsLength completed for {}", otpValidationRequest);
+import java.time.LocalDateTime;
+import java.util.UUID;
 
-        RequestType requestType = RequestType.getRequestType(StringUtils.trim(otpValidationRequest.getRequestType()));
-        otpValueValidation(UUID.fromString(otpValidationRequest.getRequestId()), otpValidationRequest.getMobileNumber(), otpValidationRequest.getOtp(), requestType);
-        logger.debug("User OTP validation completed for {}", otpValidationRequest);
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class OtpValidatorTest {
+
+    @InjectMocks
+    private OtpValidator otpValidator;
+
+    @Mock
+    private OtpManagementDao otpManagementDao;
+
+    private OtpValidationRequest validRequest;
+    private UUID requestId;
+
+    @BeforeEach
+    void setup() {
+        requestId = UUID.randomUUID();
+        validRequest = new OtpValidationRequest();
+        validRequest.setMobileNumber("9876543210");
+        validRequest.setRequestId(requestId.toString());
+        validRequest.setRequestType(RequestType.REGISTRATION.name());
+        validRequest.setOtp("123456");
     }
 
-    /**
-     * Validates the otp by checking if it matches the stored otp in the DB and ensure it has not expired.
-     *
-     * @param requestId UUID
-     * @param userId    UUID
-     * @param otpText   String
-     */
-    public void otpValueValidation(UUID requestId, String mobileNumber, String otpText, RequestType requestType) {
-        errorDtoList = new ArrayList<>();
-        OtpManagement otpManagement = otpManagementDao.getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(requestId, mobileNumber, otpText, requestType);
-        isOtpExpiry(DateTimeUtils.isPastDate(otpManagement.getExpiryTime()));
-        matchOtp(otpText, otpManagement.getOtpCode());
-    }
+    // ✅ Positive Test: Valid OTP, Not expired
+    @Test
+    void testValidateOtpValidationRequest_Success() {
+        OtpManagement otpManagement = new OtpManagement();
+        otpManagement.setOtpCode("123456");
+        otpManagement.setExpiryTime(LocalDateTime.now().plusMinutes(5));
 
-    /**
-     * Compare the provided otp with the stored otp and add an error if they do not match
-     *
-     * @param otpFromDB String
-     * @param otp       String
-     */
-    private void matchOtp(String otp, String otpFromDB) {
-        if (!otp.equals(otpFromDB)) {
-            errorDtoList.add(ErrorDto.builder().errorCode(ErrorConstants.NOT_FOUND_ERROR_CODE).errorMessage(MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, MerchantConstant.OTP)).build());
+        when(otpManagementDao.getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(
+                eq(requestId),
+                eq("9876543210"),
+                eq("123456"),
+                eq(RequestType.REGISTRATION))
+        ).thenReturn(otpManagement);
+
+        try (MockedStatic<DateTimeUtils> mockedStatic = mockStatic(DateTimeUtils.class)) {
+            mockedStatic.when(() -> DateTimeUtils.isPastDate(any())).thenReturn(false);
+            assertDoesNotThrow(() -> otpValidator.validateOtpValidationRequest(validRequest));
         }
-        throwIfErrors();
+
+        verify(otpManagementDao, times(1))
+                .getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(any(), any(), any(), any());
     }
+
+    // ❌ Negative Test: Missing required field (mobileNumber)
+    @Test
+    void testValidateOtpValidationRequest_MissingField_ThrowsException() {
+        validRequest.setMobileNumber(null);
+
+        ReportingException ex = assertThrows(ReportingException.class, () ->
+                otpValidator.validateOtpValidationRequest(validRequest)
+        );
+
+        assertTrue(ex.getMessage().contains("mobileNumber"));
+    }
+
+    // ❌ Negative Test: Invalid OTP (not matching DB)
+    @Test
+    void testValidateOtpValidationRequest_InvalidOtp_ThrowsException() {
+        OtpManagement otpManagement = new OtpManagement();
+        otpManagement.setOtpCode("654321");
+        otpManagement.setExpiryTime(LocalDateTime.now().plusMinutes(5));
+
+        when(otpManagementDao.getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(any(), any(), any(), any()))
+                .thenReturn(otpManagement);
+
+        try (MockedStatic<DateTimeUtils> mockedStatic = mockStatic(DateTimeUtils.class)) {
+            mockedStatic.when(() -> DateTimeUtils.isPastDate(any())).thenReturn(false);
+
+            ReportingException ex = assertThrows(ReportingException.class, () ->
+                    otpValidator.validateOtpValidationRequest(validRequest)
+            );
+
+            assertTrue(ex.getMessage().contains(MerchantConstant.OTP));
+            assertEquals(ErrorConstants.NOT_FOUND_ERROR_CODE, ex.getCode());
+        }
+    }
+
+    // ❌ Negative Test: OTP Expired
+    @Test
+    void testValidateOtpValidationRequest_ExpiredOtp_ThrowsException() {
+        OtpManagement otpManagement = new OtpManagement();
+        otpManagement.setOtpCode("123456");
+        otpManagement.setExpiryTime(LocalDateTime.now().minusMinutes(10));
+
+        when(otpManagementDao.getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(any(), any(), any(), any()))
+                .thenReturn(otpManagement);
+
+        try (MockedStatic<DateTimeUtils> mockedStatic = mockStatic(DateTimeUtils.class)) {
+            mockedStatic.when(() -> DateTimeUtils.isPastDate(any())).thenReturn(true);
+
+            ReportingException ex = assertThrows(ReportingException.class, () ->
+                    otpValidator.validateOtpValidationRequest(validRequest)
+            );
+
+            assertTrue(ex.getMessage().toLowerCase().contains("expired"));
+        }
+    }
+
+    // ✅ Edge Test: RequestType with extra spaces
+    @Test
+    void testValidateOtpValidationRequest_TrimmedRequestType_Success() {
+        validRequest.setRequestType("  REGISTRATION  ");
+
+        OtpManagement otpManagement = new OtpManagement();
+        otpManagement.setOtpCode("123456");
+        otpManagement.setExpiryTime(LocalDateTime.now().plusMinutes(5));
+
+        when(otpManagementDao.getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(
+                any(), any(), any(), eq(RequestType.REGISTRATION))
+        ).thenReturn(otpManagement);
+
+        try (MockedStatic<DateTimeUtils> mockedStatic = mockStatic(DateTimeUtils.class)) {
+            mockedStatic.when(() -> DateTimeUtils.isPastDate(any())).thenReturn(false);
+            assertDoesNotThrow(() -> otpValidator.validateOtpValidationRequest(validRequest));
+        }
+    }
+}
