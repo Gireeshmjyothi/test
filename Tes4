@@ -1,122 +1,47 @@
-package com.epay.reporting.dao;
+public void validateOtpValidationRequest(OtpValidationRequest otpValidationRequest) {
+        logger.debug("User OTP validation start for {}", otpValidationRequest);
+        errorDtoList = new ArrayList<>();
+        checkMandatoryField(otpValidationRequest.getMobileNumber(), "mobileNumber");
+        checkMandatoryField(otpValidationRequest.getRequestId(), "requestId");
+        checkMandatoryField(otpValidationRequest.getRequestType(), "requestType");
+        checkMandatoryField(otpValidationRequest.getOtp(), "otp");
 
-import com.epay.reporting.entity.CaptchaManagement;
-import com.epay.reporting.entity.OtpManagement;
-import com.epay.reporting.exception.ReportingException;
-import com.epay.reporting.util.enums.RequestType;
-import com.epay.reporting.util.constants.ErrorConstants;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+        throwIfErrors();
 
-import java.text.MessageFormat;
-import java.util.Optional;
-import java.util.UUID;
+        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getMobileNumber(), "mobileNumber");
+        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getRequestId(), "requestId");
+        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getRequestType(), "requestType");
+        checkForLeadingTrailingAndSingleSpace(otpValidationRequest.getOtp(), "otp");
+        logger.debug("validateFieldsLength completed for {}", otpValidationRequest);
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-class OtpManagementDaoTest {
-
-    @Mock
-    private OtpManagementRepository otpManagementRepository;
-
-    @Mock
-    private CaptchaDao captchaDao;
-
-    @InjectMocks
-    private OtpManagementDao otpManagementDao;
-
-    private UUID requestId;
-    private OtpManagement otpManagement;
-
-    @BeforeEach
-    void setUp() {
-        requestId = UUID.randomUUID();
-        otpManagement = new OtpManagement();
-        otpManagement.setRequestId(requestId);
-        otpManagement.setVerified(false);
+        RequestType requestType = RequestType.getRequestType(StringUtils.trim(otpValidationRequest.getRequestType()));
+        otpValueValidation(UUID.fromString(otpValidationRequest.getRequestId()), otpValidationRequest.getMobileNumber(), otpValidationRequest.getOtp(), requestType);
+        logger.debug("User OTP validation completed for {}", otpValidationRequest);
     }
 
-    // ✅ Positive Test Case 1: OTP found, requestType != TRANSACTION_TRACK
-    @Test
-    void testUpdateOtpAndCaptchaStatus_Success_NonTransactionTrack() {
-        // Given
-        when(otpManagementRepository.findTopByRequestIdOrderByExpiryTimeDesc(requestId))
-                .thenReturn(Optional.of(otpManagement));
-
-        // When
-        otpManagementDao.updateOtpAndCaptchaStatus(requestId, RequestType.REGISTRATION);
-
-        // Then
-        assertTrue(otpManagement.isVerified());
-        verify(otpManagementRepository, times(1)).save(otpManagement);
-        verifyNoInteractions(captchaDao);
+    /**
+     * Validates the otp by checking if it matches the stored otp in the DB and ensure it has not expired.
+     *
+     * @param requestId UUID
+     * @param userId    UUID
+     * @param otpText   String
+     */
+    public void otpValueValidation(UUID requestId, String mobileNumber, String otpText, RequestType requestType) {
+        errorDtoList = new ArrayList<>();
+        OtpManagement otpManagement = otpManagementDao.getOtpDetailsByRequestIdAndMobileNumberAndOtpCode(requestId, mobileNumber, otpText, requestType);
+        isOtpExpiry(DateTimeUtils.isPastDate(otpManagement.getExpiryTime()));
+        matchOtp(otpText, otpManagement.getOtpCode());
     }
 
-    // ✅ Positive Test Case 2: OTP found, requestType == TRANSACTION_TRACK (Captcha should also update)
-    @Test
-    void testUpdateOtpAndCaptchaStatus_Success_TransactionTrack() {
-        // Given
-        CaptchaManagement captcha = new CaptchaManagement();
-        captcha.setVerified(false);
-
-        when(otpManagementRepository.findTopByRequestIdOrderByExpiryTimeDesc(requestId))
-                .thenReturn(Optional.of(otpManagement));
-        when(captchaDao.getActiveCaptchaByRequestId(requestId))
-                .thenReturn(captcha);
-
-        // When
-        otpManagementDao.updateOtpAndCaptchaStatus(requestId, RequestType.TRANSACTION_TRACK);
-
-        // Then
-        assertTrue(otpManagement.isVerified());
-        assertTrue(captcha.isVerified());
-        verify(otpManagementRepository, times(1)).save(otpManagement);
-        verify(captchaDao, times(1)).save(captcha);
+    /**
+     * Compare the provided otp with the stored otp and add an error if they do not match
+     *
+     * @param otpFromDB String
+     * @param otp       String
+     */
+    private void matchOtp(String otp, String otpFromDB) {
+        if (!otp.equals(otpFromDB)) {
+            errorDtoList.add(ErrorDto.builder().errorCode(ErrorConstants.NOT_FOUND_ERROR_CODE).errorMessage(MessageFormat.format(ErrorConstants.NOT_FOUND_ERROR_MESSAGE, MerchantConstant.OTP)).build());
+        }
+        throwIfErrors();
     }
-
-    // ❌ Negative Test Case 1: No OTP record found
-    @Test
-    void testUpdateOtpAndCaptchaStatus_OtpNotFound_ThrowsException() {
-        // Given
-        when(otpManagementRepository.findTopByRequestIdOrderByExpiryTimeDesc(requestId))
-                .thenReturn(Optional.empty());
-
-        // When & Then
-        ReportingException ex = assertThrows(ReportingException.class, () ->
-                otpManagementDao.updateOtpAndCaptchaStatus(requestId, RequestType.REGISTRATION)
-        );
-
-        assertEquals(ErrorConstants.INVALID_ERROR_CODE, ex.getCode());
-        assertEquals(
-                MessageFormat.format(ErrorConstants.INVALID_ERROR_MESSAGE, "Otp", "Otp Expired, Invalid Request"),
-                ex.getMessage()
-        );
-
-        verify(otpManagementRepository, never()).save(any());
-        verifyNoInteractions(captchaDao);
-    }
-
-    // ✅ Edge Test: TransactionTrack with CaptchaDao returning null
-    @Test
-    void testUpdateOtpAndCaptchaStatus_TransactionTrack_CaptchaNull() {
-        // Given
-        when(otpManagementRepository.findTopByRequestIdOrderByExpiryTimeDesc(requestId))
-                .thenReturn(Optional.of(otpManagement));
-        when(captchaDao.getActiveCaptchaByRequestId(requestId))
-                .thenReturn(null); // no captcha record found
-
-        // When
-        otpManagementDao.updateOtpAndCaptchaStatus(requestId, RequestType.TRANSACTION_TRACK);
-
-        // Then
-        assertTrue(otpManagement.isVerified());
-        verify(otpManagementRepository).save(otpManagement);
-        verify(captchaDao, never()).save(any());
-    }
-} 
