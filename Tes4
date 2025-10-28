@@ -1,9 +1,102 @@
-public ReportingResponse<String> validateOtp(OtpValidationRequest otpValidationRequest){
-        // Step 1 : Validate Otp validation request
-        otpValidator.validateOtpValidationRequest(otpValidationRequest);
-        OtpGenerationDto otpGenerationDto = otpManagementDao.updateOtpAndCaptchaStatus(otpValidationRequest.getRequestId(), RequestType.getRequestType(otpValidationRequest.getRequestType()));
+package com.epay.reporting.service;
 
-        String responseMsg = MessageFormat.format(SUCCESS_MESSAGE, "OTP validated");
-        //TODO-get token from token service
-        return ReportingResponse.<String>build().status(RESPONSE_SUCCESS).data(List.of(responseMsg)).build();
+import com.epay.reporting.dao.OtpManagementDao;
+import com.epay.reporting.dto.OtpGenerationDto;
+import com.epay.reporting.model.request.OtpValidationRequest;
+import com.epay.reporting.model.response.ReportingResponse;
+import com.epay.reporting.util.enums.RequestType;
+import com.epay.reporting.validator.OtpValidator;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.UUID;
+
+import static com.epay.reporting.util.ReportingConstant.RESPONSE_SUCCESS;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class OtpServiceValidateOtpTest {
+
+    @Mock
+    private OtpManagementDao otpManagementDao;
+
+    @Mock
+    private OtpValidator otpValidator;
+
+    @InjectMocks
+    private OtpService otpService;
+
+    private OtpValidationRequest otpValidationRequest;
+
+    @BeforeEach
+    void setUp() {
+        otpValidationRequest = new OtpValidationRequest();
+        otpValidationRequest.setRequestId(UUID.randomUUID().toString());
+        otpValidationRequest.setRequestType(RequestType.LOGIN.name());
+        otpValidationRequest.setMobileNumber("9876543210");
+        otpValidationRequest.setOtpCode("123456");
     }
+
+    // ✅ Positive test: OTP validation success
+    @Test
+    void testValidateOtp_Success() {
+        // Mock validator
+        doNothing().when(otpValidator).validateOtpValidationRequest(any(OtpValidationRequest.class));
+
+        // Mock DAO response
+        when(otpManagementDao.updateOtpAndCaptchaStatus(any(), any()))
+                .thenReturn(OtpGenerationDto.builder()
+                        .mobileNumber("9876543210")
+                        .requestType(RequestType.LOGIN)
+                        .build());
+
+        // Call method
+        ReportingResponse<String> response = otpService.validateOtp(otpValidationRequest);
+
+        // Assertions
+        assertNotNull(response);
+        assertEquals(RESPONSE_SUCCESS, response.getStatus());
+        assertTrue(response.getData().get(0).contains("OTP validated"));
+
+        // Verify interactions
+        verify(otpValidator, times(1)).validateOtpValidationRequest(otpValidationRequest);
+        verify(otpManagementDao, times(1))
+                .updateOtpAndCaptchaStatus(anyString(), any(RequestType.class));
+    }
+
+    // ❌ Negative test: Validator throws exception
+    @Test
+    void testValidateOtp_ValidationFailure() {
+        doThrow(new IllegalArgumentException("Invalid OTP request"))
+                .when(otpValidator).validateOtpValidationRequest(any(OtpValidationRequest.class));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
+                otpService.validateOtp(otpValidationRequest));
+
+        assertEquals("Invalid OTP request", ex.getMessage());
+
+        verify(otpValidator, times(1)).validateOtpValidationRequest(otpValidationRequest);
+        verify(otpManagementDao, never()).updateOtpAndCaptchaStatus(any(), any());
+    }
+
+    // ❌ Negative test: DAO throws exception
+    @Test
+    void testValidateOtp_DaoThrowsException() {
+        doNothing().when(otpValidator).validateOtpValidationRequest(any(OtpValidationRequest.class));
+        when(otpManagementDao.updateOtpAndCaptchaStatus(any(), any()))
+                .thenThrow(new RuntimeException("Database update failed"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () ->
+                otpService.validateOtp(otpValidationRequest));
+
+        assertEquals("Database update failed", ex.getMessage());
+
+        verify(otpValidator, times(1)).validateOtpValidationRequest(otpValidationRequest);
+        verify(otpManagementDao, times(1)).updateOtpAndCaptchaStatus(any(), any());
+    }
+}
