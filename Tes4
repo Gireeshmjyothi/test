@@ -1,58 +1,56 @@
-Here’s a well-written GitLab story point for your issue:
+package com.epay.reporting.service;
+
+import com.epay.reporting.dao.OtpManagementDao;
+import com.epay.reporting.dto.OtpGenerationDto;
+import com.epay.reporting.model.request.OtpGenerationRequest;
+import com.epay.reporting.model.response.ReportingResponse;
+import com.epay.reporting.util.enums.RequestType;
+import com.epay.reporting.validator.OtpValidator;
+import com.sbi.epay.logging.utility.LoggerFactoryUtility;
+import com.sbi.epay.logging.utility.LoggerUtility;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.text.MessageFormat;
+import java.util.List;
+import java.util.UUID;
+
+import static com.epay.reporting.util.ReportingConstant.*;
+
+@Service
+@RequiredArgsConstructor
+public class OtpService {
+
+    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+
+    private final OtpManagementDao otpManagementDao;
+
+    private final OtpValidator otpValidator;
+
+    /**
+     * This method generates the otp and send the notification to user via notification service email and sms
+     *
+     * @param otpGenerationRequest OtpGenerationRequest
+     * @return merchantResponse
+     */
+    public ReportingResponse<String> generateOtp(OtpGenerationRequest otpGenerationRequest) {
+        // Step 1 : Validate OtpGenerationRequest
+        otpValidator.validateOtpGeneration(otpGenerationRequest);
+        logger.debug("Started OTP generation for mobileNumber: {}, requestType: {}", otpGenerationRequest.getMobileNumber(), otpGenerationRequest.getRequestType());
+        return otpGeneration(otpGenerationRequest);
+    }
 
 
----
-
-Title:
-
-Publish RFS ID, MID, and Status to Summary File and Mark Payout as Successful
-
-
----
-
-Description:
-
-As part of the payout process, we need to update the payout summary file with the following details for each processed record:
-
-RFS ID
-
-MID
-
-Payout Status
-
-
-Once the records are published successfully into the summary file, update the payout status as SUCCESS for those entries.
-
-
----
-
-Acceptance Criteria:
-
-[ ] Fetch records with pending payout status.
-
-[ ] For each record, publish the RFS ID, MID, and current status to the summary file.
-
-[ ] After publishing, mark the payout status as SUCCESS in the database.
-
-[ ] Ensure proper logging and error handling in case of any failures.
-
-[ ] Summary file should follow the predefined format (CSV/Excel etc., if applicable).
-
-
-
----
-
-Notes:
-
-The payout summary file will be used for reconciliation or audit purposes.
-
-Make sure idempotency is maintained to prevent duplicate status updates in case of retries.
-
-If a record fails during publishing, it should not be marked as SUCCESS.
-
-
-
----
-
-Let me know if you want to include details like where the file is stored (e.g., SFTP path) or if this is part of a larger batch job.
-
+    private ReportingResponse<String> otpGeneration(OtpGenerationRequest otpGenerationRequest) {
+        // Step 2 : Generate the OTP and save Hashed value in DB
+        OtpGenerationDto otpGenerationDto = OtpGenerationDto.builder()
+                .requestType(RequestType.valueOf(otpGenerationRequest.getRequestType()))
+                .mobileNumber(otpGenerationRequest.getMobileNumber())
+                .requestId(UUID.fromString(otpGenerationRequest.getRequestId()))
+                .build();
+        otpManagementDao.save(otpGenerationDto);
+        logger.debug(" OTP generated successfully for mobileNumber: {}, requestType :{}", otpGenerationRequest.getMobileNumber(), otpGenerationRequest.getRequestType());
+        // Step 3 : Build Merchant success Response and send
+        return ReportingResponse.<String>builder().status(RESPONSE_SUCCESS).data(List.of(MessageFormat.format(SUCCESS_MESSAGE, OTP_GENERATED))).build();
+    }
+}
