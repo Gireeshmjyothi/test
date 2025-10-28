@@ -1,36 +1,101 @@
 package com.epay.reporting.validator;
 
 import com.epay.reporting.model.request.OtpGenerationRequest;
-import com.sbi.epay.logging.utility.LoggerFactoryUtility;
-import com.sbi.epay.logging.utility.LoggerUtility;
-import org.springframework.stereotype.Component;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.ArrayList;
+import static org.junit.jupiter.api.Assertions.*;
 
-import static com.epay.reporting.util.ReportingConstant.MOBILE_NUMBER_REGEX;
+@ExtendWith(MockitoExtension.class)
+class OtpValidatorTest {
 
-@Component
-public class OtpValidator extends BaseValidator {
-    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+    private OtpValidator otpValidator;
 
-    public void validateOtpGeneration(OtpGenerationRequest generationRequest) {
-
-        //TODO-captcha validation
-        logger.info("Validating otp generation request.");
-        errorDtoList = new ArrayList<>();
-        checkMandatoryField(generationRequest.getMobileNumber(), "mobileNumber");
-        checkMandatoryField(generationRequest.getRequestId(), "requestId");
-        checkMandatoryField(generationRequest.getRequestType(), "requestType");
-        throwIfErrors();
-
-        checkForLeadingTrailingAndSingleSpace(generationRequest.getMobileNumber(), "mobileNumber");
-        checkForLeadingTrailingAndSingleSpace(generationRequest.getRequestId(), "requestId");
-        checkForLeadingTrailingAndSingleSpace(generationRequest.getRequestType(), "requestType");
-        throwIfErrors();
-
-        validateFieldWithRegex(generationRequest.getMobileNumber(), MOBILE_NUMBER_REGEX, "mobileNumber", "Mobile number contains [1-9]");
-        throwIfErrors();
-        logger.info("Otp generation request validated successfully.");
+    @BeforeEach
+    void setUp() {
+        otpValidator = new OtpValidator();
     }
 
+    // ✅ Positive scenario
+    @Test
+    void testValidateOtpGeneration_Success() {
+        OtpGenerationRequest request = new OtpGenerationRequest();
+        request.setMobileNumber("9876543210"); // valid 10-digit number
+        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
+        request.setRequestType("LOGIN");
+
+        assertDoesNotThrow(() -> otpValidator.validateOtpGeneration(request));
+    }
+
+    // ❌ Negative scenario: Missing mandatory field (mobileNumber)
+    @Test
+    void testValidateOtpGeneration_MissingMobileNumber() {
+        OtpGenerationRequest request = new OtpGenerationRequest();
+        request.setMobileNumber(null);
+        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
+        request.setRequestType("LOGIN");
+
+        Exception ex = assertThrows(RuntimeException.class, 
+                () -> otpValidator.validateOtpGeneration(request));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("mobile"));
+    }
+
+    // ❌ Negative scenario: Missing requestId
+    @Test
+    void testValidateOtpGeneration_MissingRequestId() {
+        OtpGenerationRequest request = new OtpGenerationRequest();
+        request.setMobileNumber("9876543210");
+        request.setRequestId("");
+        request.setRequestType("LOGIN");
+
+        Exception ex = assertThrows(RuntimeException.class, 
+                () -> otpValidator.validateOtpGeneration(request));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("requestid"));
+    }
+
+    // ❌ Negative scenario: Missing requestType
+    @Test
+    void testValidateOtpGeneration_MissingRequestType() {
+        OtpGenerationRequest request = new OtpGenerationRequest();
+        request.setMobileNumber("9876543210");
+        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
+        request.setRequestType("");
+
+        Exception ex = assertThrows(RuntimeException.class, 
+                () -> otpValidator.validateOtpGeneration(request));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("requesttype"));
+    }
+
+    // ❌ Negative scenario: Leading or trailing spaces
+    @Test
+    void testValidateOtpGeneration_LeadingTrailingSpaces() {
+        OtpGenerationRequest request = new OtpGenerationRequest();
+        request.setMobileNumber(" 9876543210 ");  // invalid (leading/trailing space)
+        request.setRequestId(" c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44 ");
+        request.setRequestType(" LOGIN ");
+
+        Exception ex = assertThrows(RuntimeException.class, 
+                () -> otpValidator.validateOtpGeneration(request));
+
+        assertTrue(ex.getMessage().toLowerCase().contains("space"));
+    }
+
+    // ❌ Negative scenario: Invalid mobile number (less than 10 digits or wrong format)
+    @Test
+    void testValidateOtpGeneration_InvalidMobileNumberFormat() {
+        OtpGenerationRequest request = new OtpGenerationRequest();
+        request.setMobileNumber("012345"); // invalid format
+        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
+        request.setRequestType("LOGIN");
+
+        Exception ex = assertThrows(RuntimeException.class, 
+                () -> otpValidator.validateOtpGeneration(request));
+
+        assertTrue(ex.getMessage().contains("Mobile number"));
+    }
 }
