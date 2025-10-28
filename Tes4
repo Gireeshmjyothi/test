@@ -6,51 +6,105 @@ import com.epay.reporting.model.request.OtpGenerationRequest;
 import com.epay.reporting.model.response.ReportingResponse;
 import com.epay.reporting.util.enums.RequestType;
 import com.epay.reporting.validator.OtpValidator;
-import com.sbi.epay.logging.utility.LoggerFactoryUtility;
-import com.sbi.epay.logging.utility.LoggerUtility;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.text.MessageFormat;
 import java.util.List;
 import java.util.UUID;
 
 import static com.epay.reporting.util.ReportingConstant.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-@Service
-@RequiredArgsConstructor
-public class OtpService {
+@ExtendWith(MockitoExtension.class)
+class OtpServiceTest {
 
-    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+    @Mock
+    private OtpManagementDao otpManagementDao;
 
-    private final OtpManagementDao otpManagementDao;
+    @Mock
+    private OtpValidator otpValidator;
 
-    private final OtpValidator otpValidator;
+    @InjectMocks
+    private OtpService otpService;
 
-    /**
-     * This method generates the otp and send the notification to user via notification service email and sms
-     *
-     * @param otpGenerationRequest OtpGenerationRequest
-     * @return merchantResponse
-     */
-    public ReportingResponse<String> generateOtp(OtpGenerationRequest otpGenerationRequest) {
-        // Step 1 : Validate OtpGenerationRequest
-        otpValidator.validateOtpGeneration(otpGenerationRequest);
-        logger.debug("Started OTP generation for mobileNumber: {}, requestType: {}", otpGenerationRequest.getMobileNumber(), otpGenerationRequest.getRequestType());
-        return otpGeneration(otpGenerationRequest);
+    private OtpGenerationRequest otpGenerationRequest;
+
+    @BeforeEach
+    void setUp() {
+        otpGenerationRequest = new OtpGenerationRequest();
+        otpGenerationRequest.setMobileNumber("9876543210");
+        otpGenerationRequest.setRequestType(RequestType.LOGIN.name());
+        otpGenerationRequest.setRequestId(UUID.randomUUID().toString());
     }
 
+    // ✅ Positive Scenario
+    @Test
+    void testGenerateOtp_Success() {
+        // Mock validator (no exception)
+        doNothing().when(otpValidator).validateOtpGeneration(otpGenerationRequest);
 
-    private ReportingResponse<String> otpGeneration(OtpGenerationRequest otpGenerationRequest) {
-        // Step 2 : Generate the OTP and save Hashed value in DB
-        OtpGenerationDto otpGenerationDto = OtpGenerationDto.builder()
-                .requestType(RequestType.valueOf(otpGenerationRequest.getRequestType()))
-                .mobileNumber(otpGenerationRequest.getMobileNumber())
-                .requestId(UUID.fromString(otpGenerationRequest.getRequestId()))
-                .build();
-        otpManagementDao.save(otpGenerationDto);
-        logger.debug(" OTP generated successfully for mobileNumber: {}, requestType :{}", otpGenerationRequest.getMobileNumber(), otpGenerationRequest.getRequestType());
-        // Step 3 : Build Merchant success Response and send
-        return ReportingResponse.<String>builder().status(RESPONSE_SUCCESS).data(List.of(MessageFormat.format(SUCCESS_MESSAGE, OTP_GENERATED))).build();
+        // Mock DAO save
+        doNothing().when(otpManagementDao).save(any(OtpGenerationDto.class));
+
+        // Call method
+        ReportingResponse<String> response = otpService.generateOtp(otpGenerationRequest);
+
+        // Verify validator and DAO are called
+        verify(otpValidator, times(1)).validateOtpGeneration(otpGenerationRequest);
+        verify(otpManagementDao, times(1)).save(any(OtpGenerationDto.class));
+
+        // Validate response
+        assertNotNull(response);
+        assertEquals(RESPONSE_SUCCESS, response.getStatus());
+        assertTrue(response.getData().get(0).contains(OTP_GENERATED));
+    }
+
+    // ❌ Negative Scenario 1: Validation failure
+    @Test
+    void testGenerateOtp_ValidationFailure() {
+        // Mock validator to throw exception
+        doThrow(new IllegalArgumentException("Invalid mobile number"))
+                .when(otpValidator).validateOtpGeneration(any(OtpGenerationRequest.class));
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () ->
+                otpService.generateOtp(otpGenerationRequest));
+
+        assertEquals("Invalid mobile number", exception.getMessage());
+
+        // DAO should NOT be called
+        verify(otpManagementDao, never()).save(any());
+    }
+
+    // ❌ Negative Scenario 2: Invalid UUID in request
+    @Test
+    void testGenerateOtp_InvalidUUID() {
+        otpGenerationRequest.setRequestId("invalid-uuid");
+
+        doNothing().when(otpValidator).validateOtpGeneration(otpGenerationRequest);
+
+        assertThrows(IllegalArgumentException.class, () ->
+                otpService.generateOtp(otpGenerationRequest));
+
+        verify(otpValidator, times(1)).validateOtpGeneration(otpGenerationRequest);
+        verify(otpManagementDao, never()).save(any());
+    }
+
+    // ❌ Negative Scenario 3: DAO throws exception while saving
+    @Test
+    void testGenerateOtp_DaoFailure() {
+        doNothing().when(otpValidator).validateOtpGeneration(otpGenerationRequest);
+
+        doThrow(new RuntimeException("DB save failed"))
+                .when(otpManagementDao).save(any(OtpGenerationDto.class));
+
+        RuntimeException exception = assertThrows(RuntimeException.class, () ->
+                otpService.generateOtp(otpGenerationRequest));
+
+        assertEquals("DB save failed", exception.getMessage());
+        verify(otpManagementDao, times(1)).save(any());
     }
 }
