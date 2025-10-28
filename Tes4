@@ -1,101 +1,109 @@
-package com.epay.reporting.validator;
+package com.epay.reporting.dao;
 
-import com.epay.reporting.model.request.OtpGenerationRequest;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
+import com.epay.reporting.config.ReportingConfig;
+import com.epay.reporting.dto.OtpGenerationDto;
+import com.epay.reporting.dto.ReportSmsDto;
+import com.epay.reporting.entity.NotificationManagement;
+import com.epay.reporting.entity.OtpManagement;
+import com.epay.reporting.exception.ReportingException;
+import com.epay.reporting.mapper.OtpManagementMapper;
+import com.epay.reporting.repository.OtpManagementRepository;
+import com.epay.reporting.util.DateTimeUtils;
+import com.epay.reporting.util.ReportUtils;
+import com.epay.reporting.util.SmsUtil;
+import com.epay.reporting.util.enums.RequestType;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.sbi.epay.logging.utility.LoggerFactoryUtility;
+import com.sbi.epay.logging.utility.LoggerUtility;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.text.MessageFormat;
+import java.util.Optional;
 
-@ExtendWith(MockitoExtension.class)
-class OtpValidatorTest {
+import static com.epay.reporting.util.ErrorConstants.INVALID_ERROR_CODE;
+import static com.epay.reporting.util.ErrorConstants.INVALID_ERROR_MESSAGE;
+import static com.epay.reporting.util.ReportUtils.hashValue;
+import static com.epay.reporting.util.enums.NotificationEntityType.OTP_MANAGEMENT;
 
-    private OtpValidator otpValidator;
+/**
+ * Class Name: OtpManagementDao
+ * Description: OtpManagementDao is responsible for managing the database operations related to OTP (One-Time pwd) management.
+ * It interacts with the `OtpManagementRepository` to handle CRUD operations for OTP records, including generation, validation,
+ * and expiration of OTPs. The class works closely with several components like the `NotificationDao` to send OTP notifications,
+ * `CaptchaDao` for CAPTCHA validation, `MerchantUserDao` to manage user-specific OTP data, and `LoginDao` for managing user logins.
+ * Additionally, it utilizes the `OtpManagementMapper` for mapping entities and DTOs and the `MerchantConfig` for configuration settings related to OTP operations.
+ * Author: Gireesh M
+ * Copyright (c) 2025 [State Bank of India]
+ * All rights reserved
+ * Version: 1.0
+ */
+@Repository
+@RequiredArgsConstructor
+public class OtpManagementDao {
 
-    @BeforeEach
-    void setUp() {
-        otpValidator = new OtpValidator();
+    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+
+    private final NotificationDao notificationDao;
+    private final OtpManagementRepository otpManagementRepository;
+    private final OtpManagementMapper otpManagementMapper;
+    private final ReportingConfig reportingConfig;
+
+    private static NotificationManagement buildNotificationManagement(OtpManagement otpManagement) {
+        return NotificationManagement.builder().requestType(String.valueOf(otpManagement.getRequestType())).entityId(otpManagement.getId()).entityName(OTP_MANAGEMENT).build();
     }
 
-    // ✅ Positive scenario
-    @Test
-    void testValidateOtpGeneration_Success() {
-        OtpGenerationRequest request = new OtpGenerationRequest();
-        request.setMobileNumber("9876543210"); // valid 10-digit number
-        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
-        request.setRequestType("LOGIN");
-
-        assertDoesNotThrow(() -> otpValidator.validateOtpGeneration(request));
+    /**
+     * Saves otp generation details to the DB
+     *
+     * @param otpGenerationDto OtpGenerationDto
+     */
+    @Transactional
+    public void save(OtpGenerationDto otpGenerationDto) {
+        try {
+            // Step 1 : Expired the current OTP, if exist
+            expiredAlreadyInProcessOtpRequest(otpGenerationDto.getMobileNumber(), otpGenerationDto.getRequestType());
+            //Step 2 : Generate OTP, Hashed and Set expiry time to OtpManagement
+            String otp = ReportUtils.generateOtp();
+            otpGenerationDto.setOtpCode(hashValue(otp));
+            otpGenerationDto.setExpiryTime(DateTimeUtils.addMinutes(reportingConfig.getOtpExpiryTime()));
+            OtpManagement otpManagement = otpManagementMapper.mapOtpGenerationDtoToOtpManagement(otpGenerationDto);
+            //Step 3 : Save Data in Management Table
+            otpManagement = otpManagementRepository.save(otpManagement);
+            //Step 4 : Send Notification
+            sendSms(otpManagement, otp);
+        } catch (Exception ex) {
+            logger.info("Error while saving OTP into otp management : {}", ex.getMessage());
+            throw new ReportingException(INVALID_ERROR_CODE, MessageFormat.format(INVALID_ERROR_MESSAGE, "OTP", "While saving otp into "));
+        }
     }
 
-    // ❌ Negative scenario: Missing mandatory field (mobileNumber)
-    @Test
-    void testValidateOtpGeneration_MissingMobileNumber() {
-        OtpGenerationRequest request = new OtpGenerationRequest();
-        request.setMobileNumber(null);
-        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
-        request.setRequestType("LOGIN");
-
-        Exception ex = assertThrows(RuntimeException.class, 
-                () -> otpValidator.validateOtpGeneration(request));
-
-        assertTrue(ex.getMessage().toLowerCase().contains("mobile"));
+    /**
+     * This method will expiry already in progress otp request
+     *
+     * @param mobileNumber String
+     * @param requestType  RequestType
+     */
+    public void expiredAlreadyInProcessOtpRequest(String mobileNumber, RequestType requestType) {
+        Optional<OtpManagement> otpAlreadyInProgress = otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(requestType, mobileNumber);
+        if (otpAlreadyInProgress.isPresent()) {
+            OtpManagement otpManagement = otpAlreadyInProgress.get();
+            otpManagement.setExpiryTime(System.currentTimeMillis());
+            otpManagementRepository.save(otpManagement);
+        }
     }
 
-    // ❌ Negative scenario: Missing requestId
-    @Test
-    void testValidateOtpGeneration_MissingRequestId() {
-        OtpGenerationRequest request = new OtpGenerationRequest();
-        request.setMobileNumber("9876543210");
-        request.setRequestId("");
-        request.setRequestType("LOGIN");
-
-        Exception ex = assertThrows(RuntimeException.class, 
-                () -> otpValidator.validateOtpGeneration(request));
-
-        assertTrue(ex.getMessage().toLowerCase().contains("requestid"));
-    }
-
-    // ❌ Negative scenario: Missing requestType
-    @Test
-    void testValidateOtpGeneration_MissingRequestType() {
-        OtpGenerationRequest request = new OtpGenerationRequest();
-        request.setMobileNumber("9876543210");
-        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
-        request.setRequestType("");
-
-        Exception ex = assertThrows(RuntimeException.class, 
-                () -> otpValidator.validateOtpGeneration(request));
-
-        assertTrue(ex.getMessage().toLowerCase().contains("requesttype"));
-    }
-
-    // ❌ Negative scenario: Leading or trailing spaces
-    @Test
-    void testValidateOtpGeneration_LeadingTrailingSpaces() {
-        OtpGenerationRequest request = new OtpGenerationRequest();
-        request.setMobileNumber(" 9876543210 ");  // invalid (leading/trailing space)
-        request.setRequestId(" c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44 ");
-        request.setRequestType(" LOGIN ");
-
-        Exception ex = assertThrows(RuntimeException.class, 
-                () -> otpValidator.validateOtpGeneration(request));
-
-        assertTrue(ex.getMessage().toLowerCase().contains("space"));
-    }
-
-    // ❌ Negative scenario: Invalid mobile number (less than 10 digits or wrong format)
-    @Test
-    void testValidateOtpGeneration_InvalidMobileNumberFormat() {
-        OtpGenerationRequest request = new OtpGenerationRequest();
-        request.setMobileNumber("012345"); // invalid format
-        request.setRequestId("c1a6c77d-5110-4c57-9d52-4c3c3e7a5f44");
-        request.setRequestType("LOGIN");
-
-        Exception ex = assertThrows(RuntimeException.class, 
-                () -> otpValidator.validateOtpGeneration(request));
-
-        assertTrue(ex.getMessage().contains("Mobile number"));
+    /**
+     * Sends an OTP notification via SMS to the specified merchant user.
+     * Logs the SMS activity in the notification management entity.
+     *
+     * @param otpManagement The OTP management entity containing request details.
+     * @param otp           The generated OTP code.
+     */
+    private void sendSms(OtpManagement otpManagement, String otp) throws JsonProcessingException {
+        NotificationManagement notificationMgmt = buildNotificationManagement(otpManagement);
+        ReportSmsDto smsRequest = ReportSmsDto.builder().entityId(otpManagement.getId()).entityType(OTP_MANAGEMENT).mobileNumber(otpManagement.getMobileNumber()).message(MessageFormat.format(SmsUtil.getSMSTemplate(otpManagement.getRequestType()), otp, reportingConfig.getOtpExpiryTime())).requestType(notificationMgmt.getRequestType()).build();
+        notificationDao.publishSmsNotification(smsRequest);
     }
 }
