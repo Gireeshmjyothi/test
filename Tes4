@@ -1,3 +1,4 @@
+
 package com.epay.reporting.dao;
 
 import com.epay.reporting.config.ReportingConfig;
@@ -10,100 +11,139 @@ import com.epay.reporting.mapper.OtpManagementMapper;
 import com.epay.reporting.repository.OtpManagementRepository;
 import com.epay.reporting.util.DateTimeUtils;
 import com.epay.reporting.util.ReportUtils;
-import com.epay.reporting.util.SmsUtil;
 import com.epay.reporting.util.enums.RequestType;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.sbi.epay.logging.utility.LoggerFactoryUtility;
-import com.sbi.epay.logging.utility.LoggerUtility;
-import jakarta.transaction.Transactional;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.*;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.text.MessageFormat;
 import java.util.Optional;
 
-import static com.epay.reporting.util.ErrorConstants.INVALID_ERROR_CODE;
-import static com.epay.reporting.util.ErrorConstants.INVALID_ERROR_MESSAGE;
-import static com.epay.reporting.util.ReportUtils.hashValue;
-import static com.epay.reporting.util.enums.NotificationEntityType.OTP_MANAGEMENT;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-/**
- * Class Name: OtpManagementDao
- * Description: OtpManagementDao is responsible for managing the database operations related to OTP (One-Time pwd) management.
- * It interacts with the `OtpManagementRepository` to handle CRUD operations for OTP records, including generation, validation,
- * and expiration of OTPs. The class works closely with several components like the `NotificationDao` to send OTP notifications,
- * `CaptchaDao` for CAPTCHA validation, `MerchantUserDao` to manage user-specific OTP data, and `LoginDao` for managing user logins.
- * Additionally, it utilizes the `OtpManagementMapper` for mapping entities and DTOs and the `MerchantConfig` for configuration settings related to OTP operations.
- * Author: Gireesh M
- * Copyright (c) 2025 [State Bank of India]
- * All rights reserved
- * Version: 1.0
- */
-@Repository
-@RequiredArgsConstructor
-public class OtpManagementDao {
+@ExtendWith(MockitoExtension.class)
+class OtpManagementDaoTest {
 
-    private final LoggerUtility logger = LoggerFactoryUtility.getLogger(this.getClass());
+    @Mock
+    private NotificationDao notificationDao;
 
-    private final NotificationDao notificationDao;
-    private final OtpManagementRepository otpManagementRepository;
-    private final OtpManagementMapper otpManagementMapper;
-    private final ReportingConfig reportingConfig;
+    @Mock
+    private OtpManagementRepository otpManagementRepository;
 
-    private static NotificationManagement buildNotificationManagement(OtpManagement otpManagement) {
-        return NotificationManagement.builder().requestType(String.valueOf(otpManagement.getRequestType())).entityId(otpManagement.getId()).entityName(OTP_MANAGEMENT).build();
+    @Mock
+    private OtpManagementMapper otpManagementMapper;
+
+    @Mock
+    private ReportingConfig reportingConfig;
+
+    @InjectMocks
+    private OtpManagementDao otpManagementDao;
+
+    private OtpGenerationDto otpGenerationDto;
+    private OtpManagement otpManagement;
+
+    @BeforeEach
+    void setup() {
+        otpGenerationDto = OtpGenerationDto.builder()
+                .mobileNumber("9876543210")
+                .requestType(RequestType.LOGIN)
+                .build();
+
+        otpManagement = new OtpManagement();
+        otpManagement.setId(1001L);
+        otpManagement.setMobileNumber("9876543210");
+        otpManagement.setRequestType(RequestType.LOGIN);
     }
 
-    /**
-     * Saves otp generation details to the DB
-     *
-     * @param otpGenerationDto OtpGenerationDto
-     */
-    @Transactional
-    public void save(OtpGenerationDto otpGenerationDto) {
-        try {
-            // Step 1 : Expired the current OTP, if exist
-            expiredAlreadyInProcessOtpRequest(otpGenerationDto.getMobileNumber(), otpGenerationDto.getRequestType());
-            //Step 2 : Generate OTP, Hashed and Set expiry time to OtpManagement
-            String otp = ReportUtils.generateOtp();
-            otpGenerationDto.setOtpCode(hashValue(otp));
-            otpGenerationDto.setExpiryTime(DateTimeUtils.addMinutes(reportingConfig.getOtpExpiryTime()));
-            OtpManagement otpManagement = otpManagementMapper.mapOtpGenerationDtoToOtpManagement(otpGenerationDto);
-            //Step 3 : Save Data in Management Table
-            otpManagement = otpManagementRepository.save(otpManagement);
-            //Step 4 : Send Notification
-            sendSms(otpManagement, otp);
-        } catch (Exception ex) {
-            logger.info("Error while saving OTP into otp management : {}", ex.getMessage());
-            throw new ReportingException(INVALID_ERROR_CODE, MessageFormat.format(INVALID_ERROR_MESSAGE, "OTP", "While saving otp into "));
-        }
+    // ✅ Positive test: Successful OTP save
+    @Test
+    void testSave_Success() throws Exception {
+        // Mock dependencies
+        when(otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(any(), any()))
+                .thenReturn(Optional.empty());
+        when(reportingConfig.getOtpExpiryTime()).thenReturn(5);
+        when(otpManagementMapper.mapOtpGenerationDtoToOtpManagement(any())).thenReturn(otpManagement);
+        when(otpManagementRepository.save(any(OtpManagement.class))).thenReturn(otpManagement);
+        doNothing().when(notificationDao).publishSmsNotification(any(ReportSmsDto.class));
+
+        // Call method
+        otpManagementDao.save(otpGenerationDto);
+
+        // Verify interactions
+        verify(otpManagementRepository, times(1))
+                .findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(RequestType.LOGIN, "9876543210");
+        verify(otpManagementRepository, times(1)).save(any(OtpManagement.class));
+        verify(notificationDao, times(1)).publishSmsNotification(any(ReportSmsDto.class));
     }
 
-    /**
-     * This method will expiry already in progress otp request
-     *
-     * @param mobileNumber String
-     * @param requestType  RequestType
-     */
-    public void expiredAlreadyInProcessOtpRequest(String mobileNumber, RequestType requestType) {
-        Optional<OtpManagement> otpAlreadyInProgress = otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(requestType, mobileNumber);
-        if (otpAlreadyInProgress.isPresent()) {
-            OtpManagement otpManagement = otpAlreadyInProgress.get();
-            otpManagement.setExpiryTime(System.currentTimeMillis());
-            otpManagementRepository.save(otpManagement);
-        }
+    // ❌ Negative test: Repository save throws exception
+    @Test
+    void testSave_ThrowsReportingException_OnRepositoryFailure() {
+        when(otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(any(), any()))
+                .thenReturn(Optional.empty());
+        when(otpManagementMapper.mapOtpGenerationDtoToOtpManagement(any())).thenReturn(otpManagement);
+        when(otpManagementRepository.save(any(OtpManagement.class)))
+                .thenThrow(new RuntimeException("DB save failed"));
+        when(reportingConfig.getOtpExpiryTime()).thenReturn(5);
+
+        ReportingException exception = assertThrows(ReportingException.class,
+                () -> otpManagementDao.save(otpGenerationDto));
+
+        assertTrue(exception.getMessage().contains("While saving otp"));
+        verify(otpManagementRepository, times(1)).save(any(OtpManagement.class));
     }
 
-    /**
-     * Sends an OTP notification via SMS to the specified merchant user.
-     * Logs the SMS activity in the notification management entity.
-     *
-     * @param otpManagement The OTP management entity containing request details.
-     * @param otp           The generated OTP code.
-     */
-    private void sendSms(OtpManagement otpManagement, String otp) throws JsonProcessingException {
-        NotificationManagement notificationMgmt = buildNotificationManagement(otpManagement);
-        ReportSmsDto smsRequest = ReportSmsDto.builder().entityId(otpManagement.getId()).entityType(OTP_MANAGEMENT).mobileNumber(otpManagement.getMobileNumber()).message(MessageFormat.format(SmsUtil.getSMSTemplate(otpManagement.getRequestType()), otp, reportingConfig.getOtpExpiryTime())).requestType(notificationMgmt.getRequestType()).build();
-        notificationDao.publishSmsNotification(smsRequest);
+    // ✅ Positive test: Existing OTP expired successfully
+    @Test
+    void testExpiredAlreadyInProcessOtpRequest_WhenRecordExists() {
+        OtpManagement existingOtp = new OtpManagement();
+        existingOtp.setId(200L);
+        existingOtp.setMobileNumber("9876543210");
+        existingOtp.setRequestType(RequestType.LOGIN);
+
+        when(otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(any(), any()))
+                .thenReturn(Optional.of(existingOtp));
+        when(otpManagementRepository.save(any(OtpManagement.class))).thenReturn(existingOtp);
+
+        otpManagementDao.expiredAlreadyInProcessOtpRequest("9876543210", RequestType.LOGIN);
+
+        verify(otpManagementRepository, times(1))
+                .findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(RequestType.LOGIN, "9876543210");
+        verify(otpManagementRepository, times(1)).save(existingOtp);
+        assertNotNull(existingOtp.getExpiryTime());
+    }
+
+    // ✅ Positive test: No existing OTP found, do nothing
+    @Test
+    void testExpiredAlreadyInProcessOtpRequest_NoExistingOtp() {
+        when(otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(any(), any()))
+                .thenReturn(Optional.empty());
+
+        otpManagementDao.expiredAlreadyInProcessOtpRequest("9876543210", RequestType.LOGIN);
+
+        verify(otpManagementRepository, times(1))
+                .findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(RequestType.LOGIN, "9876543210");
+        verify(otpManagementRepository, never()).save(any());
+    }
+
+    // ❌ Negative test: Exception thrown while sending SMS
+    @Test
+    void testSave_WhenSmsNotificationFails() throws JsonProcessingException {
+        when(otpManagementRepository.findTopByRequestTypeAndMobileNumberOrderByExpiryTimeDesc(any(), any()))
+                .thenReturn(Optional.empty());
+        when(otpManagementMapper.mapOtpGenerationDtoToOtpManagement(any())).thenReturn(otpManagement);
+        when(otpManagementRepository.save(any(OtpManagement.class))).thenReturn(otpManagement);
+        when(reportingConfig.getOtpExpiryTime()).thenReturn(5);
+        doThrow(new JsonProcessingException("SMS send failed") {})
+                .when(notificationDao).publishSmsNotification(any(ReportSmsDto.class));
+
+        ReportingException exception = assertThrows(ReportingException.class,
+                () -> otpManagementDao.save(otpGenerationDto));
+
+        assertTrue(exception.getMessage().contains("While saving otp"));
+        verify(notificationDao, times(1)).publishSmsNotification(any(ReportSmsDto.class));
     }
 }
