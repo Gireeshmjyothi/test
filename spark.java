@@ -1,21 +1,40 @@
-private List<EGrasSuccessResponse> buildOrderStatusResponse(List<OrderStatusResponse> orderStatusResponseList) {
+import java.util.Arrays;
 
-    return orderStatusResponseList.stream()
-            .flatMap(orderStatus -> {
+public enum PaymentStatusCode {
 
-                OrderInfo orderInfo = orderStatus.getOrderInfo();
+    SUCCESS("SUCCESS", 'S'),
+    FAILED("FAILED", 'F'),
+    PENDING("PENDING", 'P');
 
-                return orderStatus.getPaymentInfoList().stream().map(payment -> 
-                        EGrasSuccessResponse.builder()
-                                .bid(payment.getBid())                       // From PaymentInfo
-                                .prn(orderInfo.getPrn())                     // From OrderInfo
-                                .grn(payment.getGrn())                       // From PaymentInfo
-                                .amt(payment.getAmount())                    // From PaymentInfo
-                                .payStatus(payment.getPayStatus())           // From PaymentInfo
-                                .transCompletionDateTime(payment.getTxnDate()) // From PaymentInfo
-                                // add more mapping as needed
-                                .build()
+    private final String key;
+    private final char code;
+
+    PaymentStatusCode(String key, char code) {
+        this.key = key;
+        this.code = code;
+    }
+
+    public char getCode() {
+        return code;
+    }
+
+    /**
+     * Convert String → Enum using Arrays.stream
+     * Throws RuntimeException if not found
+     */
+    public static PaymentStatusCode fromString(String key) {
+        return Arrays.stream(values())
+                .filter(status -> status.key.equalsIgnoreCase(key))
+                .findFirst()
+                .orElseThrow(() -> 
+                        new RuntimeException("Invalid PaymentStatusCode: " + key)
                 );
-            })
-            .collect(Collectors.toList());
+    }
+
+    /**
+     * Shortcut method → return char directly
+     */
+    public static char getCodeFromString(String key) {
+        return fromString(key).getCode();
+    }
 }
