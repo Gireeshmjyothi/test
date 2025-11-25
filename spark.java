@@ -1,17 +1,35 @@
-@Bean
-    public SparkSession sparkSession() {
-        SparkSession.Builder sparkSession = SparkSession.builder()
-                .appName("operations-recon-spark-service");
-
-        if (LOCAL.equalsIgnoreCase(reconProperties.getEnv())) {
-            sparkSession = sparkSession.master(reconProperties.getSparkMaster());
-        } else {
-            sparkSession = sparkSession
-                    .master(reconProperties.getSparkMaster())
-                    .config("spark.hadoop.fs.s3a.endpoint", reconProperties.getAwsUrl())
-                    .config("spark.hadoop.fs.s3a.endpoint.region", reconProperties.getAwsRegion())
-                    .config("spark.hadoop.fs.s3a.access.key", reconProperties.getAwsKey())
-                    .config("spark.hadoop.fs.s3a.secret.key", reconProperties.getAwsSecret());
-        }
-        return sparkSession.getOrCreate();
+private List<EGrasSuccessResponse> buildOrderStatusResponse(List<OrderStatusResponse> orderStatusResponseList){
+        List<EGrasSuccessResponse> eGrasSuccessResponseList = // Map data and return list<egrassuccessresponse>
+        return null;
     }
+
+
+@Data
+@Builder
+public class OrderStatusResponse {
+    private OrderInfo orderInfo;
+    private List<PaymentInfo> paymentInfoList;
+}
+
+
+@Data
+@Builder
+public class EGrasSuccessResponse {
+    @JsonProperty("BID")
+    private String bid;
+
+    @JsonProperty("PRN")
+    private String prn;
+
+    @JsonProperty("GRN")
+    private String grn;
+
+    @JsonProperty("AMT")
+    private Double amt;
+
+    @JsonProperty("PAYSTATUS")
+    private Character payStatus;
+
+    @JsonProperty("TransCompletionDateTime")
+    private String transCompletionDateTime;
+}
