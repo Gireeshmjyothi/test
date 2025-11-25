@@ -1,35 +1,16 @@
-private List<EGrasSuccessResponse> buildOrderStatusResponse(List<OrderStatusResponse> orderStatusResponseList){
-        List<EGrasSuccessResponse> eGrasSuccessResponseList = // Map data and return list<egrassuccessresponse>
-        return null;
-    }
+private List<EGrasSuccessResponse> buildOrderStatusResponse(List<OrderStatusResponse> orderStatusResponseList) {
 
-
-@Data
-@Builder
-public class OrderStatusResponse {
-    private OrderInfo orderInfo;
-    private List<PaymentInfo> paymentInfoList;
-}
-
-
-@Data
-@Builder
-public class EGrasSuccessResponse {
-    @JsonProperty("BID")
-    private String bid;
-
-    @JsonProperty("PRN")
-    private String prn;
-
-    @JsonProperty("GRN")
-    private String grn;
-
-    @JsonProperty("AMT")
-    private Double amt;
-
-    @JsonProperty("PAYSTATUS")
-    private Character payStatus;
-
-    @JsonProperty("TransCompletionDateTime")
-    private String transCompletionDateTime;
+    return orderStatusResponseList.stream()
+            .flatMap(orderStatus -> orderStatus.getPaymentInfoList().stream()
+                    .map(payment -> EGrasSuccessResponse.builder()
+                            .bid(payment.getBid())
+                            .prn(orderStatus.getOrderInfo().getPrn())
+                            .grn(payment.getGrn())
+                            .amt(payment.getAmount())
+                            .payStatus(payment.getPayStatus())
+                            .transCompletionDateTime(payment.getTransactionDateTime())
+                            .build()
+                    )
+            )
+            .collect(Collectors.toList());
 }
