@@ -1,19 +1,79 @@
-/**
-     * This method is used to publish the custom merchant to Integration Service.
-     *
-     * @param transactionDto transactionDto
+@Configuration
+public class KafkaAdminConfig {
+
+    @Bean
+    public AdminClient adminClient(KafkaProperties kafkaProperties) {
+        return AdminClient.create(kafkaProperties.buildAdminProperties());
+    }
+}
+
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class CustomMerchantPublisher {
+
+    private final AdminClient adminClient;
+    private final KafkaMessagePublisher kafkaMessagePublisher;
+    private final ObjectMapper objectMapper;
+    private final TopicsConfig topics; // contains topic prefix, partitions, replication factor
+
+    /**
+     * Publishes Custom Merchant event to Kafka.
      */
     public void publishCustomMerchant(TransactionDto transactionDto) {
+        String topicName = topics.getCustomMerchantTopic() + "_" + transactionDto.getMerchantId();
         String kafkaRoutingKey = getKafkaRoutingKey("Custom_Merchant", transactionDto.getMerchantId());
+
         try {
-            new NewTopic(topics.getCustomMerchantTopic() + "_" + transactionDto.getMerchantId(), topics.getNoOfPartitions(), topics.getReplicationFactor());
+            // Create topic if not present
+            createTopicIfNotExists(topicName);
+
             String message = objectMapper.writeValueAsString(transactionDto);
-            log.info("Custom Merchant Publisher for routingKey : {} and value : {}", kafkaRoutingKey, transactionDto);
-            publisher.publishEvent(buildEventSendLog(CUSTOM_MERCHANT_TOPIC, topics.getCustomMerchantTopic() + "_" + transactionDto.getMerchantId(), kafkaRoutingKey, message));
-            kafkaMessagePublisher.publish(topics.getCustomMerchantTopic() + "_" + transactionDto.getMerchantId(), kafkaRoutingKey, message);
-            log.info("Custom merchant published for routingKey : {} and transaction : {}", kafkaRoutingKey, message);
+
+            log.info("Publishing Custom Merchant → topic={}, key={}, data={}", 
+                     topicName, kafkaRoutingKey, message);
+
+            kafkaMessagePublisher.publish(topicName, kafkaRoutingKey, message);
+
+            log.info("Custom Merchant published successfully → topic={}, key={}",
+                     topicName, kafkaRoutingKey);
+
         } catch (Exception ex) {
-            log.error("Error while publishing custom merchant for routingKey : {} and value : {}", kafkaRoutingKey, transactionDto);
-            publisher.publishEvent(buildEventErrorLog(CUSTOM_MERCHANT_TOPIC, topics.getCustomMerchantTopic() + "_" + transactionDto.getMerchantId(), kafkaRoutingKey, ex.getMessage()));
+            log.error("Error while publishing Custom Merchant for key={} | message={}",
+                    kafkaRoutingKey, ex.getMessage(), ex);
+            throw new RuntimeException("Kafka publish failed: " + ex.getMessage());
         }
     }
+
+    /**
+     * Check if Kafka topic exists. If not, create it.
+     */
+    private void createTopicIfNotExists(String topicName) throws Exception {
+        Set<String> existingTopics = adminClient.listTopics().names().get();
+
+        if (existingTopics.contains(topicName)) {
+            log.info("Topic '{}' already exists — using existing.", topicName);
+            return;
+        }
+
+        log.info("Topic '{}' not found — creating new.", topicName);
+
+        NewTopic newTopic = new NewTopic(
+                topicName,
+                topics.getNoOfPartitions(),
+                topics.getReplicationFactor()
+        );
+
+        adminClient.createTopics(Collections.singleton(newTopic)).all().get();
+
+        log.info("Topic '{}' created successfully.", topicName);
+    }
+
+    /**
+     * Dummy method - your original routing key logic
+     */
+    private String getKafkaRoutingKey(String prefix, String merchantId) {
+        return prefix + "_" + merchantId;
+    }
+}
