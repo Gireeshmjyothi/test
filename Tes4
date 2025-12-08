@@ -1,79 +1,69 @@
-@Configuration
-public class KafkaAdminConfig {
+package com.tcs.encryption;
 
-    @Bean
-    public AdminClient adminClient(KafkaProperties kafkaProperties) {
-        return AdminClient.create(kafkaProperties.buildAdminProperties());
-    }
-}
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.Key;
+import java.util.Base64;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
+public class AESUtil {
 
-@Service
-@RequiredArgsConstructor
-@Slf4j
-public class CustomMerchantPublisher {
-
-    private final AdminClient adminClient;
-    private final KafkaMessagePublisher kafkaMessagePublisher;
-    private final ObjectMapper objectMapper;
-    private final TopicsConfig topics; // contains topic prefix, partitions, replication factor
+    private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
 
     /**
-     * Publishes Custom Merchant event to Kafka.
+     * Encrypt text using AES CBC mode
      */
-    public void publishCustomMerchant(TransactionDto transactionDto) {
-        String topicName = topics.getCustomMerchantTopic() + "_" + transactionDto.getMerchantId();
-        String kafkaRoutingKey = getKafkaRoutingKey("Custom_Merchant", transactionDto.getMerchantId());
-
+    public static String encrypt(String plainText, String keyFilePath) {
         try {
-            // Create topic if not present
-            createTopicIfNotExists(topicName);
+            Key secretKey = generateKey(keyFilePath);
+            IvParameterSpec iv = new IvParameterSpec(new byte[16]); // static IV like your old code
 
-            String message = objectMapper.writeValueAsString(transactionDto);
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
 
-            log.info("Publishing Custom Merchant → topic={}, key={}, data={}", 
-                     topicName, kafkaRoutingKey, message);
+            byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
 
-            kafkaMessagePublisher.publish(topicName, kafkaRoutingKey, message);
+            return Base64.getEncoder().encodeToString(encrypted);
 
-            log.info("Custom Merchant published successfully → topic={}, key={}",
-                     topicName, kafkaRoutingKey);
-
-        } catch (Exception ex) {
-            log.error("Error while publishing Custom Merchant for key={} | message={}",
-                    kafkaRoutingKey, ex.getMessage(), ex);
-            throw new RuntimeException("Kafka publish failed: " + ex.getMessage());
+        } catch (Exception e) {
+            throw new RuntimeException("AES Encryption failed", e);
         }
     }
 
     /**
-     * Check if Kafka topic exists. If not, create it.
+     * Decrypt encrypted Base64 string using AES CBC
      */
-    private void createTopicIfNotExists(String topicName) throws Exception {
-        Set<String> existingTopics = adminClient.listTopics().names().get();
+    public static String decrypt(String encryptedText, String keyFilePath) {
+        try {
+            Key secretKey = generateKey(keyFilePath);
+            IvParameterSpec iv = new IvParameterSpec(new byte[16]);
 
-        if (existingTopics.contains(topicName)) {
-            log.info("Topic '{}' already exists — using existing.", topicName);
-            return;
+            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
+
+            byte[] decoded = Base64.getDecoder().decode(encryptedText);
+            byte[] decrypted = cipher.doFinal(decoded);
+
+            return new String(decrypted, StandardCharsets.UTF_8);
+
+        } catch (Exception e) {
+            throw new RuntimeException("AES Decryption failed", e);
         }
-
-        log.info("Topic '{}' not found — creating new.", topicName);
-
-        NewTopic newTopic = new NewTopic(
-                topicName,
-                topics.getNoOfPartitions(),
-                topics.getReplicationFactor()
-        );
-
-        adminClient.createTopics(Collections.singleton(newTopic)).all().get();
-
-        log.info("Topic '{}' created successfully.", topicName);
     }
 
     /**
-     * Dummy method - your original routing key logic
+     * Generate AES key from file (same logic as your old version)
      */
-    private String getKafkaRoutingKey(String prefix, String merchantId) {
-        return prefix + "_" + merchantId;
+    private static Key generateKey(String keyFilePath) throws Exception {
+        byte[] fileBytes = Files.readAllBytes(Path.of(keyFilePath));
+
+        MessageDigest sha = MessageDigest.getInstance("SHA-256");
+        byte[] keyBytes = sha.digest(fileBytes);
+
+        return new SecretKeySpec(keyBytes, "AES");
     }
 }
