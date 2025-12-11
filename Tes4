@@ -1,69 +1,42 @@
-package com.tcs.encryption;
+@Slf4j
+public class RetryUtil {
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.Key;
-import java.util.Base64;
-import java.nio.file.Files;
-import java.nio.file.Path;
+    public static <T> T executeWithRetry(Callable<T> callable, int maxAttempts, long delayMillis) {
+        int attempt = 1;
 
-public class AESUtil {
+        while (true) {
+            try {
+                return callable.call();
+            } catch (Exception e) {
+                log.error("Attempt {} failed: {}", attempt, e.getMessage());
 
-    private static final String TRANSFORMATION = "AES/CBC/PKCS5Padding";
+                if (attempt >= maxAttempts) {
+                    log.error("All retry attempts failed");
+                    throw new RuntimeException(e);
+                }
 
-    /**
-     * Encrypt text using AES CBC mode
-     */
-    public static String encrypt(String plainText, String keyFilePath) {
-        try {
-            Key secretKey = generateKey(keyFilePath);
-            IvParameterSpec iv = new IvParameterSpec(new byte[16]); // static IV like your old code
-
-            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv);
-
-            byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
-
-            return Base64.getEncoder().encodeToString(encrypted);
-
-        } catch (Exception e) {
-            throw new RuntimeException("AES Encryption failed", e);
+                try {
+                    Thread.sleep(delayMillis);
+                } catch (InterruptedException ignored) {}
+                attempt++;
+            }
         }
     }
+}
 
-    /**
-     * Decrypt encrypted Base64 string using AES CBC
-     */
-    public static String decrypt(String encryptedText, String keyFilePath) {
-        try {
-            Key secretKey = generateKey(keyFilePath);
-            IvParameterSpec iv = new IvParameterSpec(new byte[16]);
 
-            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, iv);
 
-            byte[] decoded = Base64.getDecoder().decode(encryptedText);
-            byte[] decrypted = cipher.doFinal(decoded);
+public void processFile(String fileName) {
 
-            return new String(decrypted, StandardCharsets.UTF_8);
+    byte[] fileContent = RetryUtil.executeWithRetry(
+            () -> readFileFromS3(fileName),
+            3,
+            2000
+    );
 
-        } catch (Exception e) {
-            throw new RuntimeException("AES Decryption failed", e);
-        }
-    }
-
-    /**
-     * Generate AES key from file (same logic as your old version)
-     */
-    private static Key generateKey(String keyFilePath) throws Exception {
-        byte[] fileBytes = Files.readAllBytes(Path.of(keyFilePath));
-
-        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        byte[] keyBytes = sha.digest(fileBytes);
-
-        return new SecretKeySpec(keyBytes, "AES");
-    }
+    RetryUtil.executeWithRetry(
+            () -> uploadFileToSftp("/Archive/" + fileName, fileContent),
+            3,
+            3000
+    );
 }
