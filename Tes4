@@ -1,124 +1,81 @@
-@Slf4j
-public class RetryUtil {
+/**
+     * This method used to read file from s3 and upload the same by encrypting.
+     *
+     * @param gstnFileRequest gstnFileRequest
+     */
+    public CommunicationResponse<String> uploadFileOnSftp(GstnFileRequest gstnFileRequest) {
+        try {
+            //Step-1: Validating GSTN request body.
+            logger.info("Validating GSTN request body.");
+            gstnRequestValidator.validateGstnRequest(gstnFileRequest);
 
-    public static <T> T executeWithRetry(Callable<T> callable, int maxAttempts, long delayMillis) {
-        int attempt = 1;
+            //Step-2: Read file from S3 path.
+            logger.info("Read file from S3 path.");
+            RetryResult<byte[]> s3FileContent = RetryUtil
+                    .executeWithRetry(() -> fileService.readFile(gstnFileRequest.getS3Path()).readAllBytes(), communicationConfig.getRetryMax(), communicationConfig.getRetryDelay());
 
-        while (true) {
-            try {
-                return callable.call();
-            } catch (Exception e) {
-                log.error("Attempt {} failed: {}", attempt, e.getMessage());
+            //Step-3: Publishing gstn report status as s3 failure to report service.
+            logger.info("Publishing gstn report status as s3 failure to report service.");
+            publishEvent(gstnFileRequest, s3FileContent.isSuccess(), S3_ERROR_CODE,  S3_ERROR_MESSAGE);
 
-                if (attempt >= maxAttempts) {
-                    log.error("All retry attempts failed");
-                    throw new RuntimeException(e);
-                }
+            //Step-4: Encrypt file using TCS encryption logic.
+            logger.info("Encrypt file using TCS encryption logic.");
+            byte[] encryptedFile = EncryptionDecryptionUtil.encryptFile(s3FileContent.getResult(), communicationConfig.getEncryptionKey()).getBytes();
 
-                try {
-                    Thread.sleep(delayMillis);
-                } catch (InterruptedException ignored) {}
-                attempt++;
-            }
+            //Step-5: Uploading encrypted file on sftp.
+            logger.info("Uploading encrypted file on sftp.");
+            RetryResult<Void> sftpResult = RetryUtil
+                    .executeWithRetry(() -> sftpClientService.uploadFile(communicationConfig.getUploadDir(), gstnFileRequest.getS3Path(), encryptedFile), communicationConfig.getRetryMax(), communicationConfig.getRetryDelay());
+
+            //Step-6: Publishing gstn report status as SFTP failure to report service.
+            logger.info("Publishing gstn report status as s3 failure to report service.");
+            publishEvent(gstnFileRequest, sftpResult.isSuccess(), SFTP_ERROR_CODE,  SFTP_UPLOAD_ERROR_MESSAGE);
+
+        } catch (CommunicationException exception) {
+            gstReportStatusProducer.publish(gstnFileRequest.getGstInfoId(), buildGSTNReportStatus(gstnFileRequest, UploadStatusType.UPLOAD_FAILED.name, ENCRYPTION_ERROR_MESSAGE));
+            logger.error("Error while encrypting file : {}", exception.getErrorMessage());
+            throw new CommunicationException(exception.getErrorCode(), ENCRYPTION_ERROR_MESSAGE);
         }
-    }
-}
 
+        //Step-7: Publishing gstn report status as Success to report service.
+        logger.info("Publishing gstn report status as Success to report service.");
+        gstReportStatusProducer.publish(gstnFileRequest.getGstInfoId(), buildGSTNReportStatus(gstnFileRequest, UploadStatusType.UPLOAD_SUCCESS.getName(), UploadStatusType.UPLOAD_SUCCESS.getName()));
 
-
-public void processFile(String fileName) {
-
-    byte[] fileContent = RetryUtil.executeWithRetry(
-            () -> readFileFromS3(fileName),
-            3,
-            2000
-    );
-
-    RetryUtil.executeWithRetry(
-            () -> uploadFileToSftp("/Archive/" + fileName, fileContent),
-            3,
-            3000
-    );
-}
-
-
-
-public class RetryResult<T> {
-    private final boolean success;
-    private final T result;
-    private final Exception exception;
-
-    public RetryResult(boolean success, T result, Exception exception) {
-        this.success = success;
-        this.result = result;
-        this.exception = exception;
+        //Step-8: Return file upload status.
+        logger.info("Return file upload status.");
+        return CommunicationResponse.<String>builder().data(List.of("File uploaded successfully on SFTP.")).build();
     }
 
-    public boolean isSuccess() { return success; }
-    public T getResult() { return result; }
-    public Exception getException() { return exception; }
-}
-
-
-
-import java.util.concurrent.Callable;
-
-public class RetryUtil {
-
-    public static <T> RetryResult<T> executeWithRetry(Callable<T> callable, int maxAttempts, long delayMillis) {
-        int attempt = 1;
-
-        while (true) {
-            try {
-                T result = callable.call();
-                return new RetryResult<>(true, result, null);
-            } catch (Exception e) {
-
-                if (attempt >= maxAttempts) {
-                    return new RetryResult<>(false, null, e);
-                }
-
-                try { Thread.sleep(delayMillis); } 
-                catch (InterruptedException ignored) {}
-
-                attempt++;
-            }
+    /**
+     * This method is used to send event to report service of gstn report status.
+     * @param gstnFileRequest gstnFileRequest.
+     * @param isSuccess isSuccess.
+     * @param errorCode errorCode.
+     * @param message message.
+     */
+    private void publishEvent(GstnFileRequest gstnFileRequest, boolean isSuccess, String errorCode, String message) {
+        if (!isSuccess) {
+            logger.info("Publishing uploadFailed status for s3 read failure.");
+            gstReportStatusProducer.publish(gstnFileRequest.getGstInfoId(), buildGSTNReportStatus(gstnFileRequest, UploadStatusType.UPLOAD_FAILED.getName(), message));
+            throw new CommunicationException(errorCode, message);
         }
+
     }
 
-    public static RetryResult<Void> executeWithRetry(Runnable runnable, int maxAttempts, long delayMillis) {
-        return executeWithRetry(() -> {
-            runnable.run();
-            return null;
-        }, maxAttempts, delayMillis);
+    /**
+     * This method is used to build the gstn report status dto.
+     * @param gstnFileRequest gstn request.
+     * @param status status.
+     * @param remark remark.
+     * @return String.
+     */
+    private String buildGSTNReportStatus(GstnFileRequest gstnFileRequest, String status, String remark) {
+        logger.info("Build GSTN report status DTO.");
+        return CommunicationUtil.toJson(GstReportStatusDto.builder()
+                .gstInfoId(UUID.fromString(gstnFileRequest.getGstInfoId()))
+                .s3Path(gstnFileRequest.getS3Path())
+                .reportType(gstnFileRequest.getGstReportType())
+                .status(status)
+                .remark(remark)
+                .build());
     }
-}
-
-public void processFile(String fileName) {
-
-    RetryResult<byte[]> s3Result = RetryUtil.executeWithRetry(
-            () -> readFileFromS3(fileName),
-            3,
-            2000
-    );
-
-    if (!s3Result.isSuccess()) {
-        dao.updateStatus(fileName, "FAILED");
-        return;
-    }
-
-    byte[] fileContent = s3Result.getResult();
-
-    RetryResult<Void> sftpResult = RetryUtil.executeWithRetry(
-            () -> uploadFileToSftp("/Archive/" + fileName, fileContent),
-            3,
-            3000
-    );
-
-    if (!sftpResult.isSuccess()) {
-        dao.updateStatus(fileName, "FAILED");
-        return;
-    }
-
-    dao.updateStatus(fileName, "SUCCESS");
-}
