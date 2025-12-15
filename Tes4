@@ -1,81 +1,128 @@
-/**
-     * This method used to read file from s3 and upload the same by encrypting.
-     *
-     * @param gstnFileRequest gstnFileRequest
-     */
-    public CommunicationResponse<String> uploadFileOnSftp(GstnFileRequest gstnFileRequest) {
-        try {
-            //Step-1: Validating GSTN request body.
-            logger.info("Validating GSTN request body.");
-            gstnRequestValidator.validateGstnRequest(gstnFileRequest);
+public CommunicationResponse<String> uploadFileOnSftp(GstnFileRequest gstnFileRequest) {
 
-            //Step-2: Read file from S3 path.
-            logger.info("Read file from S3 path.");
-            RetryResult<byte[]> s3FileContent = RetryUtil
-                    .executeWithRetry(() -> fileService.readFile(gstnFileRequest.getS3Path()).readAllBytes(), communicationConfig.getRetryMax(), communicationConfig.getRetryDelay());
+    // Step-1: Validate request
+    logger.info("Validating GSTN request body.");
+    gstnRequestValidator.validateGstnRequest(gstnFileRequest);
 
-            //Step-3: Publishing gstn report status as s3 failure to report service.
-            logger.info("Publishing gstn report status as s3 failure to report service.");
-            publishEvent(gstnFileRequest, s3FileContent.isSuccess(), S3_ERROR_CODE,  S3_ERROR_MESSAGE);
+    // Step-2: Read file from S3
+    byte[] s3FileBytes = readFileFromS3(gstnFileRequest);
 
-            //Step-4: Encrypt file using TCS encryption logic.
-            logger.info("Encrypt file using TCS encryption logic.");
-            byte[] encryptedFile = EncryptionDecryptionUtil.encryptFile(s3FileContent.getResult(), communicationConfig.getEncryptionKey()).getBytes();
+    // Step-3: Encrypt file
+    byte[] encryptedFile = encryptFile(gstnFileRequest, s3FileBytes);
 
-            //Step-5: Uploading encrypted file on sftp.
-            logger.info("Uploading encrypted file on sftp.");
-            RetryResult<Void> sftpResult = RetryUtil
-                    .executeWithRetry(() -> sftpClientService.uploadFile(communicationConfig.getUploadDir(), gstnFileRequest.getS3Path(), encryptedFile), communicationConfig.getRetryMax(), communicationConfig.getRetryDelay());
+    // Step-4: Upload to SFTP
+    uploadFileToSftp(gstnFileRequest, encryptedFile);
 
-            //Step-6: Publishing gstn report status as SFTP failure to report service.
-            logger.info("Publishing gstn report status as s3 failure to report service.");
-            publishEvent(gstnFileRequest, sftpResult.isSuccess(), SFTP_ERROR_CODE,  SFTP_UPLOAD_ERROR_MESSAGE);
+    // Step-5: Publish SUCCESS
+    logger.info("Publishing gstn report status as Success.");
+    gstReportStatusProducer.publish(
+            gstnFileRequest.getGstInfoId(),
+            buildGSTNReportStatus(
+                    gstnFileRequest,
+                    UploadStatusType.UPLOAD_SUCCESS.getName(),
+                    UploadStatusType.UPLOAD_SUCCESS.getName()
+            )
+    );
 
-        } catch (CommunicationException exception) {
-            gstReportStatusProducer.publish(gstnFileRequest.getGstInfoId(), buildGSTNReportStatus(gstnFileRequest, UploadStatusType.UPLOAD_FAILED.name, ENCRYPTION_ERROR_MESSAGE));
-            logger.error("Error while encrypting file : {}", exception.getErrorMessage());
-            throw new CommunicationException(exception.getErrorCode(), ENCRYPTION_ERROR_MESSAGE);
+    return CommunicationResponse.<String>builder()
+            .data(List.of("File uploaded successfully on SFTP."))
+            .build();
+}
+
+
+private byte[] readFileFromS3(GstnFileRequest request) {
+    try {
+        logger.info("Reading file from S3.");
+        RetryResult<byte[]> result = RetryUtil.executeWithRetry(
+                () -> fileService.readFile(request.getS3Path()).readAllBytes(),
+                communicationConfig.getRetryMax(),
+                communicationConfig.getRetryDelay()
+        );
+
+        if (!result.isSuccess()) {
+            throw new CommunicationException(S3_ERROR_CODE, S3_ERROR_MESSAGE);
         }
 
-        //Step-7: Publishing gstn report status as Success to report service.
-        logger.info("Publishing gstn report status as Success to report service.");
-        gstReportStatusProducer.publish(gstnFileRequest.getGstInfoId(), buildGSTNReportStatus(gstnFileRequest, UploadStatusType.UPLOAD_SUCCESS.getName(), UploadStatusType.UPLOAD_SUCCESS.getName()));
+        return result.getResult();
 
-        //Step-8: Return file upload status.
-        logger.info("Return file upload status.");
-        return CommunicationResponse.<String>builder().data(List.of("File uploaded successfully on SFTP.")).build();
+    } catch (Exception ex) {
+        publishFailureAndThrow(
+                request,
+                S3_ERROR_CODE,
+                S3_ERROR_MESSAGE,
+                ex
+        );
+        return null; // unreachable
     }
+}
 
-    /**
-     * This method is used to send event to report service of gstn report status.
-     * @param gstnFileRequest gstnFileRequest.
-     * @param isSuccess isSuccess.
-     * @param errorCode errorCode.
-     * @param message message.
-     */
-    private void publishEvent(GstnFileRequest gstnFileRequest, boolean isSuccess, String errorCode, String message) {
-        if (!isSuccess) {
-            logger.info("Publishing uploadFailed status for s3 read failure.");
-            gstReportStatusProducer.publish(gstnFileRequest.getGstInfoId(), buildGSTNReportStatus(gstnFileRequest, UploadStatusType.UPLOAD_FAILED.getName(), message));
-            throw new CommunicationException(errorCode, message);
+private byte[] encryptFile(GstnFileRequest request, byte[] fileBytes) {
+    try {
+        logger.info("Encrypting file.");
+        return EncryptionDecryptionUtil
+                .encryptFile(fileBytes, communicationConfig.getEncryptionKey())
+                .getBytes();
+
+    } catch (Exception ex) {
+        publishFailureAndThrow(
+                request,
+                ENCRYPTION_ERROR_CODE,
+                ENCRYPTION_ERROR_MESSAGE,
+                ex
+        );
+        return null;
+    }
+}
+
+
+private void uploadFileToSftp(GstnFileRequest request, byte[] encryptedFile) {
+    try {
+        logger.info("Uploading encrypted file to SFTP.");
+        RetryResult<Void> result = RetryUtil.executeWithRetry(
+                () -> sftpClientService.uploadFile(
+                        communicationConfig.getUploadDir(),
+                        request.getS3Path(),
+                        encryptedFile
+                ),
+                communicationConfig.getRetryMax(),
+                communicationConfig.getRetryDelay()
+        );
+
+        if (!result.isSuccess()) {
+            throw new CommunicationException(
+                    SFTP_ERROR_CODE,
+                    SFTP_UPLOAD_ERROR_MESSAGE
+            );
         }
 
+    } catch (Exception ex) {
+        publishFailureAndThrow(
+                request,
+                SFTP_ERROR_CODE,
+                SFTP_UPLOAD_ERROR_MESSAGE,
+                ex
+        );
     }
+}
 
-    /**
-     * This method is used to build the gstn report status dto.
-     * @param gstnFileRequest gstn request.
-     * @param status status.
-     * @param remark remark.
-     * @return String.
-     */
-    private String buildGSTNReportStatus(GstnFileRequest gstnFileRequest, String status, String remark) {
-        logger.info("Build GSTN report status DTO.");
-        return CommunicationUtil.toJson(GstReportStatusDto.builder()
-                .gstInfoId(UUID.fromString(gstnFileRequest.getGstInfoId()))
-                .s3Path(gstnFileRequest.getS3Path())
-                .reportType(gstnFileRequest.getGstReportType())
-                .status(status)
-                .remark(remark)
-                .build());
-    }
+private void publishFailureAndThrow(
+        GstnFileRequest request,
+        String errorCode,
+        String errorMessage,
+        Exception ex
+) {
+    logger.error("Operation failed: {}", errorMessage, ex);
+
+    gstReportStatusProducer.publish(
+            request.getGstInfoId(),
+            buildGSTNReportStatus(
+                    request,
+                    UploadStatusType.UPLOAD_FAILED.getName(),
+                    errorMessage
+            )
+    );
+
+    throw (ex instanceof CommunicationException)
+            ? (CommunicationException) ex
+            : new CommunicationException(errorCode, errorMessage);
+}
