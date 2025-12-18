@@ -1,128 +1,42 @@
-public CommunicationResponse<String> uploadFileOnSftp(GstnFileRequest gstnFileRequest) {
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
-    // Step-1: Validate request
-    logger.info("Validating GSTN request body.");
-    gstnRequestValidator.validateGstnRequest(gstnFileRequest);
+public final class DateUtils {
 
-    // Step-2: Read file from S3
-    byte[] s3FileBytes = readFileFromS3(gstnFileRequest);
+    private static final DateTimeFormatter SLASH_FORMAT =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    // Step-3: Encrypt file
-    byte[] encryptedFile = encryptFile(gstnFileRequest, s3FileBytes);
+    private static final DateTimeFormatter DASH_FORMAT =
+            DateTimeFormatter.ofPattern("dd-MM-yyyy");
 
-    // Step-4: Upload to SFTP
-    uploadFileToSftp(gstnFileRequest, encryptedFile);
+    private static final DateTimeFormatter OUTPUT_FORMAT =
+            DateTimeFormatter.ofPattern("yyyyMM");
 
-    // Step-5: Publish SUCCESS
-    logger.info("Publishing gstn report status as Success.");
-    gstReportStatusProducer.publish(
-            gstnFileRequest.getGstInfoId(),
-            buildGSTNReportStatus(
-                    gstnFileRequest,
-                    UploadStatusType.UPLOAD_SUCCESS.getName(),
-                    UploadStatusType.UPLOAD_SUCCESS.getName()
-            )
-    );
+    private DateUtils() {
+        // utility class
+    }
 
-    return CommunicationResponse.<String>builder()
-            .data(List.of("File uploaded successfully on SFTP."))
-            .build();
-}
+    public static String getPreviousMonthYear(String inputDate) {
+        LocalDate date = parseDate(inputDate);
 
+        YearMonth previousMonth = YearMonth.from(date).minusMonths(1);
 
-private byte[] readFileFromS3(GstnFileRequest request) {
-    try {
-        logger.info("Reading file from S3.");
-        RetryResult<byte[]> result = RetryUtil.executeWithRetry(
-                () -> fileService.readFile(request.getS3Path()).readAllBytes(),
-                communicationConfig.getRetryMax(),
-                communicationConfig.getRetryDelay()
-        );
+        return previousMonth.format(OUTPUT_FORMAT);
+    }
 
-        if (!result.isSuccess()) {
-            throw new CommunicationException(S3_ERROR_CODE, S3_ERROR_MESSAGE);
+    private static LocalDate parseDate(String input) {
+        try {
+            return LocalDate.parse(input, SLASH_FORMAT);
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDate.parse(input, DASH_FORMAT);
+            } catch (DateTimeParseException ex) {
+                throw new IllegalArgumentException(
+                        "Invalid date format. Expected DD/MM/YYYY or DD-MM-YYYY"
+                );
+            }
         }
-
-        return result.getResult();
-
-    } catch (Exception ex) {
-        publishFailureAndThrow(
-                request,
-                S3_ERROR_CODE,
-                S3_ERROR_MESSAGE,
-                ex
-        );
-        return null; // unreachable
     }
-}
-
-private byte[] encryptFile(GstnFileRequest request, byte[] fileBytes) {
-    try {
-        logger.info("Encrypting file.");
-        return EncryptionDecryptionUtil
-                .encryptFile(fileBytes, communicationConfig.getEncryptionKey())
-                .getBytes();
-
-    } catch (Exception ex) {
-        publishFailureAndThrow(
-                request,
-                ENCRYPTION_ERROR_CODE,
-                ENCRYPTION_ERROR_MESSAGE,
-                ex
-        );
-        return null;
-    }
-}
-
-
-private void uploadFileToSftp(GstnFileRequest request, byte[] encryptedFile) {
-    try {
-        logger.info("Uploading encrypted file to SFTP.");
-        RetryResult<Void> result = RetryUtil.executeWithRetry(
-                () -> sftpClientService.uploadFile(
-                        communicationConfig.getUploadDir(),
-                        request.getS3Path(),
-                        encryptedFile
-                ),
-                communicationConfig.getRetryMax(),
-                communicationConfig.getRetryDelay()
-        );
-
-        if (!result.isSuccess()) {
-            throw new CommunicationException(
-                    SFTP_ERROR_CODE,
-                    SFTP_UPLOAD_ERROR_MESSAGE
-            );
-        }
-
-    } catch (Exception ex) {
-        publishFailureAndThrow(
-                request,
-                SFTP_ERROR_CODE,
-                SFTP_UPLOAD_ERROR_MESSAGE,
-                ex
-        );
-    }
-}
-
-private void publishFailureAndThrow(
-        GstnFileRequest request,
-        String errorCode,
-        String errorMessage,
-        Exception ex
-) {
-    logger.error("Operation failed: {}", errorMessage, ex);
-
-    gstReportStatusProducer.publish(
-            request.getGstInfoId(),
-            buildGSTNReportStatus(
-                    request,
-                    UploadStatusType.UPLOAD_FAILED.getName(),
-                    errorMessage
-            )
-    );
-
-    throw (ex instanceof CommunicationException)
-            ? (CommunicationException) ex
-            : new CommunicationException(errorCode, errorMessage);
 }
