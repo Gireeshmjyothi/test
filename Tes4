@@ -1,18 +1,26 @@
 @Transactional
-    @Modifying
-    @Query(value = """
-            UPDATE GST_REPORT_DETAILS
-            SET GST_PROCESSING_STATUS = :gstnProcessingStatus
-            WHERE GSTN || '|' || MONTH_YEAR
-            IN (:pairs) AND GST_PROCESSING_STATUS = :gstPendingStatus
-            """, nativeQuery = true)
-    void updateGstProcessingStatusByGstnAndMonthYear(@Param("pairs") List<String> pairs, @Param("gstnProcessingStatus") String gstSuccessStatus, String gstPendingStatus);
-
-
-private List<String> getGstnCsvReportRowList(List<GstnCsvReportDto> gstnCsvReportDtoList) {
-        return gstnCsvReportDtoList
-                .stream()
-                .filter(filter -> ObjectUtils.isNotEmpty(filter.getGstn()) && ObjectUtils.isNotEmpty(filter.getMonthYear()))
-                .map(gstnCsvReportDto -> gstnCsvReportDto.getGstn() + "|" + gstnCsvReportDto.getMonthYear())
-                .toList();
-    }
+@Modifying
+@Query(value = """
+    MERGE INTO GST_REPORT_DETAILS grd
+    USING (
+        SELECT
+            REGEXP_SUBSTR(column_value, '[^|]+', 1, 1) AS gstn,
+            REGEXP_SUBSTR(column_value, '[^|]+', 1, 2) AS month_year,
+            REGEXP_SUBSTR(column_value, '[^|]+', 1, 3) AS merchant_id
+        FROM TABLE(CAST(:pairs AS SYS.ODCIVARCHAR2LIST))
+    ) src
+    ON (
+        grd.GSTN = src.gstn
+        AND grd.MONTH_YEAR = src.month_year
+        AND grd.GST_PROCESSING_STATUS = :gstPendingStatus
+    )
+    WHEN MATCHED THEN
+        UPDATE SET
+            grd.GST_PROCESSING_STATUS = :gstSuccessStatus,
+            grd.MERCHANT_ID = src.merchant_id
+    """, nativeQuery = true)
+void updateGstStatusAndMerchantId(
+    @Param("pairs") List<String> pairs,
+    @Param("gstSuccessStatus") String gstSuccessStatus,
+    @Param("gstPendingStatus") String gstPendingStatus
+);
