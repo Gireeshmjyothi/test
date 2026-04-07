@@ -1,41 +1,29 @@
-1. Scheduler Implementation
-Create a scheduler in the push-notification service.
-Scheduler should periodically fetch records with push status = P (Pending).
-2. Fetch Required Data
-Use existing queries in push-notification service to retrieve:
-orderInfo
-paymentInfo
-merchantUrl
-3. Request Preparation
-Create a request object containing:
-Order information
-Payment information
-Merchant URL
-Convert the request object into JSON string format before publishing.
-4. Merchant Type Verification
-Call admin-service to fetch merchantInfo.
-Determine whether the merchant is:
-Custom Merchant
-Standard Merchant
-5. Kafka Publishing
-If merchant type = Custom Merchant
-Publish the prepared request payload to Kafka topic.
-If merchant type = Standard Merchant
-Skip publishing.
-6. Push Status Update
-After successful Kafka publish:
-Update push notification status from
-P → IN (In Progress).
-Acceptance Criteria
-Scheduler should trigger and process push notifications with status = P.
-System should fetch orderInfo, paymentInfo, and merchantUrl correctly.
-System should call admin-service to determine merchant type.
-Kafka message should be published only for custom merchants.
-Kafka message payload should be in JSON string format.
-Push notification status should update from P to IN after successful publish.
-If merchant is standard, no message should be published.
-Proper logging should be added for:
-Scheduler execution
-Admin-service response
-Kafka publish success/failure
-Status update.
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+
+public class TreasuryConverter {
+
+    public static List<String> convertToDollarSeparated(List<TreasuryDto> list) {
+
+        AtomicLong counter = new AtomicLong(1000);
+
+        return list.stream()
+                .map(dto -> {
+
+                    long uniqueId = counter.getAndIncrement();
+
+                    return String.join("$",
+                            String.valueOf(uniqueId),          // unique number
+                            safe(dto.getName()),
+                            safe(dto.getAccountNumber()),
+                            safe(dto.getAmount())
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    private static String safe(Object value) {
+        return value == null ? "" : String.valueOf(value);
+    }
+}
