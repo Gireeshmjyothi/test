@@ -88,23 +88,4 @@ public class TreasuryFileGenerator {
 
         return String.valueOf(value);
     }
-}                        safe(dto.getValRecordId())
-                );
-
-                writer.write(line);
-                writer.newLine();
-            }
-        }
-    }
-
-    // ✅ Null-safe method (IMPORTANT)
-    private static String safe(Object value) {
-        if (value == null) return "";
-
-        if (value instanceof BigDecimal) {
-            return ((BigDecimal) value).toPlainString(); // avoids scientific notation
-        }
-
-        return String.valueOf(value);
-    }
 }
