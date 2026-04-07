@@ -1,29 +1,86 @@
-import java.util.*;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
-public class TreasuryConverter {
+public class TreasuryFileWriter {
 
-    public static List<String> convertToDollarSeparated(List<TreasuryDto> list) {
+    public static void writeToFile(List<TreasuryDto> list, String filePath) throws IOException {
 
         AtomicLong counter = new AtomicLong(1000);
 
-        return list.stream()
-                .map(dto -> {
+        try (BufferedWriter writer = Files.newBufferedWriter(Path.of(filePath))) {
 
-                    long uniqueId = counter.getAndIncrement();
+            for (TreasuryDto dto : list) {
 
-                    return String.join("$",
-                            String.valueOf(uniqueId),          // unique number
-                            safe(dto.getName()),
-                            safe(dto.getAccountNumber()),
-                            safe(dto.getAmount())
-                    );
-                })
-                .collect(Collectors.toList());
+                if (dto == null) {
+                    writer.newLine();
+                    continue;
+                }
+
+                long uniqueId = counter.getAndIncrement();
+
+                String line = String.join("$",
+
+                        // ✅ Unique ID
+                        String.valueOf(uniqueId),
+
+                        // ✅ Fields from your DTO
+                        safe(dto.getBscrRecordId()),
+                        safe(dto.getMultiTransfer()),
+                        safe(dto.getMscrRecordId()),
+                        safe(dto.getBankName()),
+                        safe(dto.getBankCode()),
+                        safe(dto.getBranchCode()),
+                        safe(dto.getBankCin()),
+
+                        safe(dto.getMainScrollDate()),
+                        safe(dto.getMainScrollNumber()),
+                        safe(dto.getNoOfSubScrolls()),
+                        safe(dto.getTotalMainScrollAmount()),
+                        safe(dto.getSscrRecordId()),
+
+                        safe(dto.getScrollNumber()),
+
+                        safe(dto.getSubScrollDate()),
+                        safe(dto.getSubScrollNumber()),
+                        safe(dto.getNoOfChallans()),
+                        safe(dto.getTotalSubScrollAmount()),
+                        safe(dto.getChlnRecordId()),
+
+                        safe(dto.getOfficeCode()),
+                        safe(dto.getFormNo()),
+                        safe(dto.getGrn()),
+                        safe(dto.getBankAccountCode()),
+                        safe(dto.getAmountForBankAccount()),
+                        safe(dto.getGovernmentChallanDate()),
+                        safe(dto.getPayeeNo()),
+                        safe(dto.getPayeeName()),
+                        safe(dto.getPeriodFrom()),
+                        safe(dto.getPeriodTo()),
+                        safe(dto.getStatus()),
+                        safe(dto.getTransCompletionDateTime()),
+                        safe(dto.getBankPaymentReferenceNumber()),
+                        safe(dto.getValRecordId())
+                );
+
+                writer.write(line);
+                writer.newLine();
+            }
+        }
     }
 
+    // ✅ Null-safe method (IMPORTANT)
     private static String safe(Object value) {
-        return value == null ? "" : String.valueOf(value);
+        if (value == null) return "";
+
+        if (value instanceof BigDecimal) {
+            return ((BigDecimal) value).toPlainString(); // avoids scientific notation
+        }
+
+        return String.valueOf(value);
     }
 }
