@@ -1,76 +1,49 @@
-Refund Service
-https://gitlab.epay.sbi/epay/microservices/epay_refund_service/-/merge_requests/91
-
-
-
-1.2.0
-Refund Service
-refund failed scenario
-https://gitlab.epay.sbi/epay/microservices/epay_refund_service/-/merge_requests/86
-1.2.0
-Refund Service
-modified booked refund Upi query
-ERS-47|VJ|modified booked refund Upi query (!74) · Merge requests · EPay / Microservices / Epay_Refund_Service · GitLab
-1.2.0
-Refund Service
-Added status refundProcess if sftp gets fail
-ERS-48|VJ|Added status refundProcess if sftp gets fail (!76) · Merge requests · EPay / Microservices / Epay_Refund_Service · GitLab
-
-Operation Service:
-EOS-606|AS|sync features in develop to release (!189) · Merge requests · EPay / Microservices / Epay_Operations_Service · GitLab
-
-
-
-
-V1.4.0
-Operation Service
-Verify the reconciliation process for successful multi-account transactions
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/236
-V1.4.0
-Operation Service
-Update Settlement Status as COMPLETED
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/243
-V1.4.0
-Operation Service
-Data Synch Issue in Operation Service
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/242
-V1.4.0
-Operation Service
-Springboot version upgrade 3.3.10 to 3.5.9 & dependencies vulnerability fix
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/222
-V1.4.0
-Operation Service
-Handled null as a string value while parsing multiAccount at the time of payout.
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/218
-V1.4.0
-Operation Service
-Add FilePath Validation
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/150
-V1.4.0
-Operation Service
-Upload Recon bad records file in RECON/OUT folder
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/149/diffs
-V1.4.0
-Operation Service
-Added Out Path for Sftp
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/151
-V1.4.0
-Operation Service
-Checksum validation
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/146
-V1.4.0
-Operation Service
-OPERATIONAL SERVICE - Synonyms and Grants for APPADMIN
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/143
-V1.4.0
-Operation Service
-Feature: Enable Spring Boot Actuator health, liveness, and readiness probes in operation-service
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/144
-V1.4.0
-Operation Service
-Ignoring -ve Amount while Parsing Recon File
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/253
-V1.4.0
-Operation Service
-In Production Env Bank Ref Number is wrong
-https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/240
+RELEASE NOTE
+INTRODUCTION:
+This release introduces improvements in Refund Service and Operation Service. It mainly focuses on refund processing, reconciliation improvements, SFTP handling, and system stability enhancements.
+OVERVIEW:
+This release focuses on enhancing refund reliability and operational processing. It includes fixes for refund failure scenarios, improvements in reconciliation for multi-account transactions, file handling enhancements, and system upgrades including Spring Boot version update and security fixes.
+CODE CHANGES / CONFIG / DB CHANGES:
+Refund Service (v1.2.0)
+Implemented refund failure handling improvements
+Fixed issues in refund failed scenarios
+Modified booked refund UPI query for better performance
+Added new status "refundProcess" when SFTP fails
+Operation Service (v1.4.0)
+Improved reconciliation process for multi-account transactions
+Updated settlement status to COMPLETED
+Fixed data synchronization issues
+Upgraded Spring Boot from 3.3.10 to 3.5.9 and fixed vulnerabilities
+Handled "null" string values in multi-account parsing
+Added file path validation
+Uploaded recon bad records file to RECON/OUT folder
+Added SFTP OUT path configuration
+Implemented checksum validation for file integrity
+Added DB synonyms and grants for APPADMIN
+Enabled actuator health, liveness, and readiness checks
+Ignored negative amount while parsing recon file
+Fixed incorrect bank reference number issue in production
+PREVIOUS IMPACT:
+Refund failures were not handled properly
+Issues in UPI refund query performance
+Missing status handling when SFTP fails
+Reconciliation issues in multi-account transactions
+Data sync inconsistencies
+File handling and validation gaps
+Incorrect bank reference number in production
+Negative amounts causing parsing issues
+IMPACT OF CHANGES:
+Improved refund processing and failure handling
+Better tracking of SFTP failures using new status
+Accurate and optimized UPI refund processing
+Improved reconciliation accuracy
+Stable data synchronization across services
+Better file handling and validation
+Improved system monitoring with actuator
+Increased security with dependency upgrades
+Correct bank reference handling
+Cleaner recon processing by ignoring invalid data
+ROLLBACK PLAN:
+Revert service code changes to previous version
+Restore previous configurations and behavior
+Disable new features related to reconciliation and SFTP handling if required
