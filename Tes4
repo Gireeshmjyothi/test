@@ -1,91 +1,76 @@
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStreamWriter;
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
+Refund Service
+https://gitlab.epay.sbi/epay/microservices/epay_refund_service/-/merge_requests/91
+
 
-public class TreasuryFileGenerator {
+
+1.2.0
+Refund Service
+refund failed scenario
+https://gitlab.epay.sbi/epay/microservices/epay_refund_service/-/merge_requests/86
+1.2.0
+Refund Service
+modified booked refund Upi query
+ERS-47|VJ|modified booked refund Upi query (!74) · Merge requests · EPay / Microservices / Epay_Refund_Service · GitLab
+1.2.0
+Refund Service
+Added status refundProcess if sftp gets fail
+ERS-48|VJ|Added status refundProcess if sftp gets fail (!76) · Merge requests · EPay / Microservices / Epay_Refund_Service · GitLab
 
-    public static byte[] generateFile(List<TreasuryDto> list) throws IOException {
+Operation Service:
+EOS-606|AS|sync features in develop to release (!189) · Merge requests · EPay / Microservices / Epay_Operations_Service · GitLab
 
-        AtomicLong counter = new AtomicLong(1000);
+
 
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
-             BufferedWriter writer = new BufferedWriter(
-                     new OutputStreamWriter(baos, StandardCharsets.UTF_8))) {
-
-            for (TreasuryDto dto : list) {
-
-                if (dto == null) {
-                    writer.newLine();
-                    continue;
-                }
-
-                long uniqueId = counter.getAndIncrement();
-
-                String line = String.join("$",
-
-                        String.valueOf(uniqueId),
-
-                        safe(dto.getBscrRecordId()),
-                        safe(dto.getMultiTransfer()),
-                        safe(dto.getMscrRecordId()),
-                        safe(dto.getBankName()),
-                        safe(dto.getBankCode()),
-                        safe(dto.getBranchCode()),
-                        safe(dto.getBankCin()),
-
-                        safe(dto.getMainScrollDate()),
-                        safe(dto.getMainScrollNumber()),
-                        safe(dto.getNoOfSubScrolls()),
-                        safe(dto.getTotalMainScrollAmount()),
-                        safe(dto.getSscrRecordId()),
-
-                        safe(dto.getScrollNumber()),
-
-                        safe(dto.getSubScrollDate()),
-                        safe(dto.getSubScrollNumber()),
-                        safe(dto.getNoOfChallans()),
-                        safe(dto.getTotalSubScrollAmount()),
-                        safe(dto.getChlnRecordId()),
-
-                        safe(dto.getOfficeCode()),
-                        safe(dto.getFormNo()),
-                        safe(dto.getGrn()),
-                        safe(dto.getBankAccountCode()),
-                        safe(dto.getAmountForBankAccount()),
-                        safe(dto.getGovernmentChallanDate()),
-                        safe(dto.getPayeeNo()),
-                        safe(dto.getPayeeName()),
-                        safe(dto.getPeriodFrom()),
-                        safe(dto.getPeriodTo()),
-                        safe(dto.getStatus()),
-                        safe(dto.getTransCompletionDateTime()),
-                        safe(dto.getBankPaymentReferenceNumber()),
-                        safe(dto.getValRecordId())
-                );
-
-                writer.write(line);
-                writer.newLine();
-            }
-
-            writer.flush(); // IMPORTANT
-
-            return baos.toByteArray();
-        }
-    }
-
-    // ✅ Null-safe + BigDecimal safe
-    private static String safe(Object value) {
-        if (value == null) return "";
-
-        if (value instanceof BigDecimal) {
-            return ((BigDecimal) value).toPlainString();
-        }
-
-        return String.valueOf(value);
-    }
-}
+
+V1.4.0
+Operation Service
+Verify the reconciliation process for successful multi-account transactions
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/236
+V1.4.0
+Operation Service
+Update Settlement Status as COMPLETED
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/243
+V1.4.0
+Operation Service
+Data Synch Issue in Operation Service
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/242
+V1.4.0
+Operation Service
+Springboot version upgrade 3.3.10 to 3.5.9 & dependencies vulnerability fix
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/222
+V1.4.0
+Operation Service
+Handled null as a string value while parsing multiAccount at the time of payout.
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/218
+V1.4.0
+Operation Service
+Add FilePath Validation
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/150
+V1.4.0
+Operation Service
+Upload Recon bad records file in RECON/OUT folder
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/149/diffs
+V1.4.0
+Operation Service
+Added Out Path for Sftp
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/151
+V1.4.0
+Operation Service
+Checksum validation
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/146
+V1.4.0
+Operation Service
+OPERATIONAL SERVICE - Synonyms and Grants for APPADMIN
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/143
+V1.4.0
+Operation Service
+Feature: Enable Spring Boot Actuator health, liveness, and readiness probes in operation-service
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/merge_requests/144
+V1.4.0
+Operation Service
+Ignoring -ve Amount while Parsing Recon File
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/253
+V1.4.0
+Operation Service
+In Production Env Bank Ref Number is wrong
+https://gitlab.epay.sbi/epay/microservices/epay_operations_service/-/issues/240
