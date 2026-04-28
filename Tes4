@@ -1,15 +1,34 @@
 RELEASE NOTE
+Refund Service – Version 1.2.0
 INTRODUCTION:
-This release introduces improvements in Refund Service and Operation Service. It mainly focuses on refund processing, reconciliation improvements, SFTP handling, and system stability enhancements.
+This release introduces improvements in refund processing. It focuses on handling refund failures, improving UPI refund queries, and adding better tracking for SFTP failures.
 OVERVIEW:
-This release focuses on enhancing refund reliability and operational processing. It includes fixes for refund failure scenarios, improvements in reconciliation for multi-account transactions, file handling enhancements, and system upgrades including Spring Boot version update and security fixes.
+This release enhances refund reliability by fixing failure scenarios and improving query performance. It also introduces a new status to track cases where SFTP processing fails.
 CODE CHANGES / CONFIG / DB CHANGES:
-Refund Service (v1.2.0)
 Implemented refund failure handling improvements
 Fixed issues in refund failed scenarios
 Modified booked refund UPI query for better performance
 Added new status "refundProcess" when SFTP fails
-Operation Service (v1.4.0)
+PREVIOUS IMPACT:
+Refund failures were not handled properly
+Issues in refund failed scenarios
+UPI refund query performance issues
+No proper status when SFTP failed
+IMPACT OF CHANGES:
+Improved refund failure handling
+Better stability in refund processing
+Optimized UPI refund query performance
+Ability to track SFTP failures using new status
+ROLLBACK PLAN:
+Revert refund service code changes
+Restore previous refund processing behavior
+RELEASE NOTE
+Operation Service – Version 1.4.0
+INTRODUCTION:
+This release introduces enhancements in reconciliation, file handling, and system stability. It also includes a Spring Boot upgrade and security fixes.
+OVERVIEW:
+This release focuses on improving reconciliation accuracy for multi-account transactions, enhancing file processing through SFTP, and fixing production issues. It also improves monitoring and system reliability.
+CODE CHANGES / CONFIG / DB CHANGES:
 Improved reconciliation process for multi-account transactions
 Updated settlement status to COMPLETED
 Fixed data synchronization issues
@@ -18,32 +37,29 @@ Handled "null" string values in multi-account parsing
 Added file path validation
 Uploaded recon bad records file to RECON/OUT folder
 Added SFTP OUT path configuration
-Implemented checksum validation for file integrity
+Implemented checksum validation
 Added DB synonyms and grants for APPADMIN
 Enabled actuator health, liveness, and readiness checks
 Ignored negative amount while parsing recon file
 Fixed incorrect bank reference number issue in production
 PREVIOUS IMPACT:
-Refund failures were not handled properly
-Issues in UPI refund query performance
-Missing status handling when SFTP fails
 Reconciliation issues in multi-account transactions
-Data sync inconsistencies
-File handling and validation gaps
+Incorrect settlement status updates
+Data synchronization inconsistencies
+File handling and validation issues
+Negative amounts causing parsing problems
 Incorrect bank reference number in production
-Negative amounts causing parsing issues
+Limited monitoring capability
 IMPACT OF CHANGES:
-Improved refund processing and failure handling
-Better tracking of SFTP failures using new status
-Accurate and optimized UPI refund processing
 Improved reconciliation accuracy
-Stable data synchronization across services
-Better file handling and validation
-Improved system monitoring with actuator
+Correct settlement status handling
+Stable data synchronization
+Better file validation and SFTP handling
+Improved system monitoring using actuator
 Increased security with dependency upgrades
-Correct bank reference handling
-Cleaner recon processing by ignoring invalid data
+Correct handling of bank reference numbers
+Cleaner recon processing
 ROLLBACK PLAN:
-Revert service code changes to previous version
-Restore previous configurations and behavior
-Disable new features related to reconciliation and SFTP handling if required
+Revert operation service code changes
+Restore previous reconciliation and file handling behavior
+Rollback Spring Boot version if required
