@@ -1,2 +1,14 @@
-Implemented a fix in the Excel parsing logic to correctly handle blank/empty cells during file processing. Previously, if a cell was blank, the parser skipped that position and shifted the subsequent cell values to the left, which caused incorrect column mapping and data mismatches in downstream processing.
-With this enhancement, blank cells are now preserved while reading each row, ensuring that all column positions remain aligned with the original Excel structure. This guarantees accurate value mapping, prevents data displacement issues, and improves overall reliability of file processing.
+Hi Team,
+Please refer to the attached error logs for the exceptions being observed in the TokenController between 4:00 AM and 7:00 AM.
+Based on the initial analysis, the errors can be categorized into the following scenarios:
+Business URL Failure
+The business URL validation/callback is failing.
+This may require verification or updates from the merchant side.
+Inactive Transaction Token
+In some cases, the transaction has already been cancelled.
+As part of the cancellation flow, the transaction token is marked as inactive.
+Further analysis is required to validate whether this behavior is expected for all impacted transactions.
+"Token Already Exists" Error
+The error appears to occur when the page is refreshed or resubmitted.
+This results in the transaction API being invoked twice for the same transaction, causing a duplicate token creation attempt.
+These are the primary scenarios currently identified for the TokenController errors. Kindly review the attached logs and provide your observations, especially for the business URL failures and inactive token cases.
