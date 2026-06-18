@@ -1,14 +1,24 @@
-Hi Team,
-Please refer to the attached error logs for the exceptions being observed in the TokenController between 4:00 AM and 7:00 AM.
-Based on the initial analysis, the errors can be categorized into the following scenarios:
-Business URL Failure
-The business URL validation/callback is failing.
-This may require verification or updates from the merchant side.
-Inactive Transaction Token
-In some cases, the transaction has already been cancelled.
-As part of the cancellation flow, the transaction token is marked as inactive.
-Further analysis is required to validate whether this behavior is expected for all impacted transactions.
-"Token Already Exists" Error
-The error appears to occur when the page is refreshed or resubmitted.
-This results in the transaction API being invoked twice for the same transaction, causing a duplicate token creation attempt.
-These are the primary scenarios currently identified for the TokenController errors. Kindly review the attached logs and provide your observations, especially for the business URL failures and inactive token cases.
+{
+  "rrId": "8d8f4e66-cc8c-4e98-91ef-61c6b9d0c5f8",
+  "reportType": "TRANSACTION_REPORT",
+  "reportFilter": {
+    "fromDate": "2025-06-01",
+    "toDate": "2025-06-18",
+    "merchantId": "M123456",
+    "status": "SUCCESS"
+  },
+  "s3Path": "s3://reports/transaction/",
+  "sftpPath": "/reports/transaction/",
+  "encryptionRequired": true,
+  "createdDate": 1750228200000,
+  "reportSource": "S3"
+}
+
+
+
+{
+  "rrId": "8d8f4e66-cc8c-4e98-91ef-61c6b9d0c5f8",
+  "reportPath": "s3://reports/transaction/report_001.csv",
+  "retry": false,
+  "reportSource": "S3"
+} 
