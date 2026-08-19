@@ -1,19 +1,15 @@
-@Query(value = """
-    SELECT mt.ARRN_NUM arrnNum, er.EXCHANGE_RATE exchangeRate
-    FROM MERCHANT_REFUND_ADJUSTED_VIEW mt
-    JOIN (
-        SELECT e.*,
-               ROW_NUMBER() OVER (
-                   PARTITION BY PAY_MODE, PAY_PROC_ID, PAY_PROC_TYPE, CURRENCY_CODE
-                   ORDER BY TRANSACTION_DATE DESC
-               ) rn
-        FROM INTL_EXCHANGE_RATE e
-        WHERE OPERATING_MODE = 'INTL'
-          AND STATUS = 'A'
-    ) er ON er.PAY_MODE = mt.PAY_MODE
-        AND er.PAY_PROC_ID = mt.PAY_PROC_ID
-        AND er.PAY_PROC_TYPE = mt.PAY_PROC_TYPE
-        AND er.CURRENCY_CODE = mt.CURRENCY_CODE
-        AND er.rn = 1
-    """, nativeQuery = true)
-List<ExchangeRateRequest> findExchangeRate();
+SELECT mt.ARRN_NUM AS arrnNum,
+       (
+           SELECT e.EXCHANGE_RATE
+           FROM INTL_EXCHANGE_RATE e
+           WHERE e.PAY_MODE = mt.PAY_MODE
+             AND e.PAY_PROC_ID = mt.PAY_PROC_ID
+             AND e.PAY_PROC_TYPE = mt.PAY_PROC_TYPE
+             AND e.CURRENCY_CODE = mt.CURRENCY_CODE
+             AND e.OPERATING_MODE = 'INTL'
+             AND e.STATUS = 'A'
+           ORDER BY e.TRANSACTION_DATE DESC
+           FETCH FIRST 1 ROW ONLY
+       ) AS exchangeRate
+FROM MERCHANT_REFUND_ADJUSTED_VIEW mt
+WHERE mt.PAYOUT_ID = '08392AC0F663491E8B6A011C4278AD84';
