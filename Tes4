@@ -1,24 +1,19 @@
-{
-  "rrId": "8d8f4e66-cc8c-4e98-91ef-61c6b9d0c5f8",
-  "reportType": "TRANSACTION_REPORT",
-  "reportFilter": {
-    "fromDate": "2025-06-01",
-    "toDate": "2025-06-18",
-    "merchantId": "M123456",
-    "status": "SUCCESS"
-  },
-  "s3Path": "s3://reports/transaction/",
-  "sftpPath": "/reports/transaction/",
-  "encryptionRequired": true,
-  "createdDate": 1750228200000,
-  "reportSource": "S3"
-}
-
-
-
-{
-  "rrId": "8d8f4e66-cc8c-4e98-91ef-61c6b9d0c5f8",
-  "reportPath": "s3://reports/transaction/report_001.csv",
-  "retry": false,
-  "reportSource": "S3"
-} 
+@Query(value = """
+    SELECT mt.ARRN_NUM arrnNum, er.EXCHANGE_RATE exchangeRate
+    FROM MERCHANT_REFUND_ADJUSTED_VIEW mt
+    JOIN (
+        SELECT e.*,
+               ROW_NUMBER() OVER (
+                   PARTITION BY PAY_MODE, PAY_PROC_ID, PAY_PROC_TYPE, CURRENCY_CODE
+                   ORDER BY TRANSACTION_DATE DESC
+               ) rn
+        FROM INTL_EXCHANGE_RATE e
+        WHERE OPERATING_MODE = 'INTL'
+          AND STATUS = 'A'
+    ) er ON er.PAY_MODE = mt.PAY_MODE
+        AND er.PAY_PROC_ID = mt.PAY_PROC_ID
+        AND er.PAY_PROC_TYPE = mt.PAY_PROC_TYPE
+        AND er.CURRENCY_CODE = mt.CURRENCY_CODE
+        AND er.rn = 1
+    """, nativeQuery = true)
+List<ExchangeRateRequest> findExchangeRate();
