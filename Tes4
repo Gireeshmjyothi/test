@@ -1,15 +1,27 @@
-SELECT mt.ARRN_NUM AS arrnNum,
-       (
-           SELECT e.EXCHANGE_RATE
-           FROM INTL_EXCHANGE_RATE e
-           WHERE e.PAY_MODE = mt.PAY_MODE
-             AND e.PAY_PROC_ID = mt.PAY_PROC_ID
-             AND e.PAY_PROC_TYPE = mt.PAY_PROC_TYPE
-             AND e.CURRENCY_CODE = mt.CURRENCY_CODE
-             AND e.OPERATING_MODE = 'INTL'
-             AND e.STATUS = 'A'
-           ORDER BY e.TRANSACTION_DATE DESC
-           FETCH FIRST 1 ROW ONLY
-       ) AS exchangeRate
-FROM MERCHANT_REFUND_ADJUSTED_VIEW mt
-WHERE mt.PAYOUT_ID = '08392AC0F663491E8B6A011C4278AD84';
+DECLARE
+    v_constraint_name USER_CONSTRAINTS.CONSTRAINT_NAME%TYPE;
+BEGIN
+
+    SELECT constraint_name
+    INTO v_constraint_name
+    FROM user_constraints
+    WHERE table_name = 'PAYOUT_SCHEDULER'
+      AND constraint_type = 'C'
+      AND search_condition_vc LIKE '%STATUS%'
+      AND search_condition_vc LIKE '%PENDING%'
+      AND search_condition_vc LIKE '%IN_PROCESS%'
+      AND search_condition_vc LIKE '%SUCCESS%'
+      AND search_condition_vc LIKE '%FAIL%'
+      AND ROWNUM = 1;
+
+    EXECUTE IMMEDIATE
+        'ALTER TABLE PAYOUT_SCHEDULER DROP CONSTRAINT '
+        || v_constraint_name;
+
+    EXECUTE IMMEDIATE
+        'ALTER TABLE PAYOUT_SCHEDULER ADD CONSTRAINT '
+        || v_constraint_name
+        || ' CHECK (STATUS IN (''PENDING'', ''IN_PROCESS'', ''SUCCESS'', ''FAIL'', ''PARTIAL''))';
+
+END;
+/
