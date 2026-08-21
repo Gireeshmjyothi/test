@@ -1,25 +1,28 @@
 DECLARE
-    v_constraint_name USER_CONSTRAINTS.CONSTRAINT_NAME%TYPE;
+    v_constraint_name VARCHAR2(128);
 BEGIN
 
-    SELECT constraint_name
+    -- Find the CHECK constraint associated with STATUS column
+    SELECT ac.constraint_name
     INTO v_constraint_name
-    FROM user_constraints
-    WHERE table_name = 'PAYOUT_SCHEDULER'
-      AND constraint_type = 'C'
-      AND search_condition_vc LIKE '%STATUS%'
-      AND search_condition_vc LIKE '%PENDING%'
-      AND search_condition_vc LIKE '%IN_PROCESS%'
-      AND search_condition_vc LIKE '%SUCCESS%'
-      AND search_condition_vc LIKE '%FAIL%'
-      AND ROWNUM = 1;
+    FROM all_constraints ac
+    JOIN all_cons_columns acc
+      ON ac.owner = acc.owner
+     AND ac.constraint_name = acc.constraint_name
+     AND ac.table_name = acc.table_name
+    WHERE ac.owner = 'EPAYOPERATION'
+      AND ac.table_name = 'PAYOUT_SCHEDULER'
+      AND ac.constraint_type = 'C'
+      AND acc.column_name = 'STATUS';
 
+    -- Drop existing constraint
     EXECUTE IMMEDIATE
-        'ALTER TABLE PAYOUT_SCHEDULER DROP CONSTRAINT '
+        'ALTER TABLE EPAYOPERATION.PAYOUT_SCHEDULER DROP CONSTRAINT '
         || v_constraint_name;
 
+    -- Recreate constraint with PARTIAL
     EXECUTE IMMEDIATE
-        'ALTER TABLE PAYOUT_SCHEDULER ADD CONSTRAINT '
+        'ALTER TABLE EPAYOPERATION.PAYOUT_SCHEDULER ADD CONSTRAINT '
         || v_constraint_name
         || ' CHECK (STATUS IN (''PENDING'', ''IN_PROCESS'', ''SUCCESS'', ''FAIL'', ''PARTIAL''))';
 
