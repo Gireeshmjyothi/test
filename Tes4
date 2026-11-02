@@ -1,30 +1,53 @@
-DECLARE
-    v_constraint_name VARCHAR2(128);
-BEGIN
+public Boolean updateStage(StageUpdateRequest stageUpdateRequest) {
+        //TODO: validate request
+        onboardingStageValidator.validateOnboardingStageRequest(stageUpdateRequest);
 
-    -- Find the CHECK constraint associated with STATUS column
-    SELECT ac.constraint_name
-    INTO v_constraint_name
-    FROM all_constraints ac
-    JOIN all_cons_columns acc
-      ON ac.owner = acc.owner
-     AND ac.constraint_name = acc.constraint_name
-     AND ac.table_name = acc.table_name
-    WHERE ac.owner = 'EPAYOPERATION'
-      AND ac.table_name = 'PAYOUT_SCHEDULER'
-      AND ac.constraint_type = 'C'
-      AND acc.column_name = 'STATUS';
+        List<OnboardingStageMappingDto> onboardingStageMappingDtoList = onboardingStageDao.getOnboardingStageMapping(stageUpdateRequest.getStage(), stageUpdateRequest.getStageStatus());
+        List<MIFJourneyDto> mifJourneyDtoList = onboardingStageDao.getMerchantInfoJourney(stageUpdateRequest.getMifId());
+        Map<Integer, MIFJourneyDto> stageWiseStatus = mifJourneyDtoList.stream().collect(Collectors.toMap(MIFJourneyDto::getStageNum, Function.identity()));
+        boolean isAllStepCompleted = onboardingStageDao.isAllStepCompleted(stageUpdateRequest.getMifId(), OnboardingStage.getStage(stageUpdateRequest.getStage()).getStageNum(), stageUpdateRequest.getStageStatus()); // write query on mif journey steps to check if all steps are completed for this mif and stage
+        for (OnboardingStageMappingDto onboardingStageMappingDto : onboardingStageMappingDtoList) {
+            if (!onboardingStageMappingDto.isStepCheck() && !isAllStepCompleted) {
+                throw new ValidationException("", "");
+            }
+            boolean preCondition = true;
+            if (ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPreStageCode()) && ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPreStageStatus())) {
+                preCondition = isStageCondition(onboardingStageMappingDto.getStageCode(), stageWiseStatus, onboardingStageMappingDto.getStageStatus());
+            }
 
-    -- Drop existing constraint
-    EXECUTE IMMEDIATE
-        'ALTER TABLE EPAYOPERATION.PAYOUT_SCHEDULER DROP CONSTRAINT '
-        || v_constraint_name;
+            if (preCondition) {
+                //1: write query to update mif stage to passed status in MIF journey stageUpdateRequest
+                onboardingStageDao.updateMIFJourneyStageStage(stageUpdateRequest.getMifId(), stageUpdateRequest.getStage(), stageUpdateRequest.getStageStatus());
+                boolean postCondition = true;
+                if (ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPostStageCode()) && ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPostStageStatus())) {
+                    postCondition = isStageCondition(onboardingStageMappingDto.getPostStageCode(), stageWiseStatus, onboardingStageMappingDto.getPostStageStatus());
+                }
+                if (postCondition) {
+                    String nextStage = onboardingStageMappingDto.getNextStageCode();
+                    int nextStageNum = OnboardingStage.getStage(nextStage).getStageNum();
+                    StageStatus nextStageStatus = StageStatus.valueOf(onboardingStageMappingDto.getNextStageStatus());
+                    //1: write query to update mif next stage to next status in MIF journey
+                    MIFJourneyDto mifJourneyDto = MIFJourneyDto.builder()
+                            .merchantMIFId(stageUpdateRequest.getMifId())
+                            .stageNum(nextStageNum)
+                            .status(nextStageStatus)
+                            .stageDate(System.currentTimeMillis())
+                            .build();
+                    onboardingStageDao.saveMIFJourney(mifJourneyDto);
 
-    -- Recreate constraint with PARTIAL
-    EXECUTE IMMEDIATE
-        'ALTER TABLE EPAYOPERATION.PAYOUT_SCHEDULER ADD CONSTRAINT '
-        || v_constraint_name
-        || ' CHECK (STATUS IN (''PENDING'', ''IN_PROCESS'', ''SUCCESS'', ''FAIL'', ''PARTIAL''))';
+                }
 
-END;
-/
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isStageCondition(String stageCode, Map<Integer, MIFJourneyDto> stageWiseStatus, String stageStatus) {
+        boolean preCondition;
+        Integer stageNum = OnboardingStage.getStage(stageCode).getStageNum();
+        StageStatus mapStageStatus = stageWiseStatus.get(stageNum).getStatus();
+        preCondition = Arrays.stream(stageStatus.split(",")).anyMatch(status -> status.trim().equalsIgnoreCase(mapStageStatus.getName()));
+        return preCondition;
+    }
