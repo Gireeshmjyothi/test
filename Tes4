@@ -1,53 +1,263 @@
-public Boolean updateStage(StageUpdateRequest stageUpdateRequest) {
-        //TODO: validate request
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.util.ObjectUtils;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class OnboardingStageService {
+
+    private final OnboardingStageDao onboardingStageDao;
+    private final OnboardingStageValidator onboardingStageValidator;
+
+    public Boolean updateStage(StageUpdateRequest stageUpdateRequest) {
+
+        log.info("Starting stage update for MIF ID: {}, stage: {}, status: {}",
+                stageUpdateRequest.getMifId(),
+                stageUpdateRequest.getStage(),
+                stageUpdateRequest.getStageStatus());
+
+        // Step 1: Validate the incoming stage update request.
         onboardingStageValidator.validateOnboardingStageRequest(stageUpdateRequest);
 
-        List<OnboardingStageMappingDto> onboardingStageMappingDtoList = onboardingStageDao.getOnboardingStageMapping(stageUpdateRequest.getStage(), stageUpdateRequest.getStageStatus());
-        List<MIFJourneyDto> mifJourneyDtoList = onboardingStageDao.getMerchantInfoJourney(stageUpdateRequest.getMifId());
-        Map<Integer, MIFJourneyDto> stageWiseStatus = mifJourneyDtoList.stream().collect(Collectors.toMap(MIFJourneyDto::getStageNum, Function.identity()));
-        boolean isAllStepCompleted = onboardingStageDao.isAllStepCompleted(stageUpdateRequest.getMifId(), OnboardingStage.getStage(stageUpdateRequest.getStage()).getStageNum(), stageUpdateRequest.getStageStatus()); // write query on mif journey steps to check if all steps are completed for this mif and stage
-        for (OnboardingStageMappingDto onboardingStageMappingDto : onboardingStageMappingDtoList) {
-            if (!onboardingStageMappingDto.isStepCheck() && !isAllStepCompleted) {
-                throw new ValidationException("", "");
+        // Step 2: Fetch stage mapping configurations for the requested stage and status.
+        List<OnboardingStageMappingDto> stageMappingList =
+                onboardingStageDao.getOnboardingStageMapping(
+                        stageUpdateRequest.getStage(),
+                        stageUpdateRequest.getStageStatus());
+
+        if (ObjectUtils.isEmpty(stageMappingList)) {
+            log.warn("No stage mappings found for MIF ID: {}, stage: {}",
+                    stageUpdateRequest.getMifId(),
+                    stageUpdateRequest.getStage());
+            return false;
+        }
+
+        // Step 3: Fetch all journey stages associated with this MIF.
+        List<MIFJourneyDto> journeyList =
+                onboardingStageDao.getMerchantInfoJourney(
+                        stageUpdateRequest.getMifId());
+
+        // Step 4: Build a map of stage number to journey details for efficient lookups.
+        Map<Integer, MIFJourneyDto> stageWiseStatus = journeyList.stream()
+                .collect(Collectors.toMap(
+                        MIFJourneyDto::getStageNum,
+                        Function.identity(),
+                        (existing, replacement) -> replacement));
+
+        // Step 5: Resolve the requested stage number.
+        int currentStageNum = OnboardingStage
+                .getStage(stageUpdateRequest.getStage())
+                .getStageNum();
+
+        // Step 6: Check whether every step in the requested stage is completed.
+        boolean isAllStepCompleted =
+                onboardingStageDao.isAllStepCompleted(
+                        stageUpdateRequest.getMifId(),
+                        currentStageNum,
+                        stageUpdateRequest.getStageStatus());
+
+        log.info("All steps completed: {} for MIF ID: {}, stage number: {}",
+                isAllStepCompleted,
+                stageUpdateRequest.getMifId(),
+                currentStageNum);
+
+        // Step 7: Process each configured stage mapping.
+        for (OnboardingStageMappingDto mapping : stageMappingList) {
+
+            log.debug("Processing stage mapping: {}", mapping);
+
+            // Step 8: Validate step completion when step checking is enabled.
+            if (!mapping.isStepCheck() && !isAllStepCompleted) {
+                log.warn("Step completion validation failed for MIF ID: {}, stage: {}",
+                        stageUpdateRequest.getMifId(),
+                        stageUpdateRequest.getStage());
+
+                throw new ValidationException(
+                        "STEPS_NOT_COMPLETED",
+                        "All steps must be completed before updating the stage");
             }
-            boolean preCondition = true;
-            if (ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPreStageCode()) && ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPreStageStatus())) {
-                preCondition = isStageCondition(onboardingStageMappingDto.getStageCode(), stageWiseStatus, onboardingStageMappingDto.getStageStatus());
-            }
 
-            if (preCondition) {
-                //1: write query to update mif stage to passed status in MIF journey stageUpdateRequest
-                onboardingStageDao.updateMIFJourneyStageStage(stageUpdateRequest.getMifId(), stageUpdateRequest.getStage(), stageUpdateRequest.getStageStatus());
-                boolean postCondition = true;
-                if (ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPostStageCode()) && ObjectUtils.isNotEmpty(onboardingStageMappingDto.getPostStageStatus())) {
-                    postCondition = isStageCondition(onboardingStageMappingDto.getPostStageCode(), stageWiseStatus, onboardingStageMappingDto.getPostStageStatus());
-                }
-                if (postCondition) {
-                    String nextStage = onboardingStageMappingDto.getNextStageCode();
-                    int nextStageNum = OnboardingStage.getStage(nextStage).getStageNum();
-                    StageStatus nextStageStatus = StageStatus.valueOf(onboardingStageMappingDto.getNextStageStatus());
-                    //1: write query to update mif next stage to next status in MIF journey
-                    MIFJourneyDto mifJourneyDto = MIFJourneyDto.builder()
-                            .merchantMIFId(stageUpdateRequest.getMifId())
-                            .stageNum(nextStageNum)
-                            .status(nextStageStatus)
-                            .stageDate(System.currentTimeMillis())
-                            .build();
-                    onboardingStageDao.saveMIFJourney(mifJourneyDto);
+            // Step 9: Validate the pre-stage condition.
+            boolean preCondition = isConditionSatisfied(
+                    mapping.getPreStageCode(),
+                    mapping.getPreStageStatus(),
+                    stageWiseStatus);
 
-                }
+            if (!preCondition) {
+                log.info("Pre-stage condition failed for MIF ID: {}, stage: {}",
+                        stageUpdateRequest.getMifId(),
+                        mapping.getPreStageCode());
 
-            } else {
                 return false;
             }
+
+            // Step 10: Update the current journey stage with the requested status.
+            updateCurrentStage(stageUpdateRequest);
+
+            // Step 11: Validate the post-stage condition.
+            boolean postCondition = isConditionSatisfied(
+                    mapping.getPostStageCode(),
+                    mapping.getPostStageStatus(),
+                    stageWiseStatus);
+
+            if (!postCondition) {
+                log.info("Post-stage condition not satisfied for MIF ID: {}, stage: {}",
+                        stageUpdateRequest.getMifId(),
+                        mapping.getPostStageCode());
+
+                continue;
+            }
+
+            // Step 12: Update the next journey stage when the post-condition is satisfied.
+            updateNextStage(stageUpdateRequest.getMifId(), mapping);
         }
+
+        // Step 13: All configured mappings have been processed successfully.
+        log.info("Stage update completed successfully for MIF ID: {}, stage: {}",
+                stageUpdateRequest.getMifId(),
+                stageUpdateRequest.getStage());
+
         return true;
     }
 
-    private boolean isStageCondition(String stageCode, Map<Integer, MIFJourneyDto> stageWiseStatus, String stageStatus) {
-        boolean preCondition;
-        Integer stageNum = OnboardingStage.getStage(stageCode).getStageNum();
-        StageStatus mapStageStatus = stageWiseStatus.get(stageNum).getStatus();
-        preCondition = Arrays.stream(stageStatus.split(",")).anyMatch(status -> status.trim().equalsIgnoreCase(mapStageStatus.getName()));
-        return preCondition;
+    /**
+     * Validates a stage condition.
+     * If no stage code or status is configured, the condition is considered satisfied.
+     */
+    private boolean isConditionSatisfied(
+            String stageCode,
+            String configuredStatus,
+            Map<Integer, MIFJourneyDto> stageWiseStatus) {
+
+        // Step 1: Skip validation when the condition is not configured.
+        if (ObjectUtils.isEmpty(stageCode)
+                || ObjectUtils.isEmpty(configuredStatus)) {
+            return true;
+        }
+
+        // Step 2: Resolve the stage number from the configured stage code.
+        OnboardingStage stage = OnboardingStage.getStage(stageCode);
+
+        if (stage == null) {
+            log.warn("Invalid stage code configured: {}", stageCode);
+            return false;
+        }
+
+        int stageNum = stage.getStageNum();
+
+        // Step 3: Fetch the current journey details for the configured stage.
+        MIFJourneyDto journey = stageWiseStatus.get(stageNum);
+
+        if (journey == null || journey.getStatus() == null) {
+            log.debug("Journey stage or status not found for stage code: {}", stageCode);
+            return false;
+        }
+
+        // Step 4: Compare the journey status with the configured comma-separated statuses.
+        boolean matched = Arrays.stream(configuredStatus.split(","))
+                .map(String::trim)
+                .filter(status -> !status.isEmpty())
+                .anyMatch(status ->
+                        status.equalsIgnoreCase(journey.getStatus().getName()));
+
+        // Step 5: Log the validation result.
+        log.debug("Stage condition result: stageCode={}, actualStatus={}, configuredStatus={}, matched={}",
+                stageCode,
+                journey.getStatus(),
+                configuredStatus,
+                matched);
+
+        return matched;
     }
+
+    /**
+     * Updates the current MIF journey stage.
+     */
+    private void updateCurrentStage(StageUpdateRequest request) {
+
+        log.info("Updating current stage for MIF ID: {}, stage: {}, status: {}",
+                request.getMifId(),
+                request.getStage(),
+                request.getStageStatus());
+
+        // Step 1: Update the requested stage with the supplied status.
+        onboardingStageDao.updateMIFJourneyStageStage(
+                request.getMifId(),
+                request.getStage(),
+                request.getStageStatus());
+
+        log.info("Current stage updated successfully for MIF ID: {}, stage: {}",
+                request.getMifId(),
+                request.getStage());
+    }
+
+    /**
+     * Updates the next MIF journey stage.
+     */
+    private void updateNextStage(
+            String mifId,
+            OnboardingStageMappingDto mapping) {
+
+        // Step 1: Read the next stage configuration.
+        String nextStageCode = mapping.getNextStageCode();
+        String nextStageStatusValue = mapping.getNextStageStatus();
+
+        // Step 2: Skip the update if the next stage is not configured.
+        if (ObjectUtils.isEmpty(nextStageCode)
+                || ObjectUtils.isEmpty(nextStageStatusValue)) {
+
+            log.debug("Next stage configuration is missing. Skipping next-stage update for MIF ID: {}",
+                    mifId);
+            return;
+        }
+
+        // Step 3: Resolve the next stage number.
+        OnboardingStage nextStage = OnboardingStage.getStage(nextStageCode);
+
+        if (nextStage == null) {
+            log.warn("Invalid next stage code: {} for MIF ID: {}",
+                    nextStageCode, mifId);
+            throw new ValidationException(
+                    "INVALID_NEXT_STAGE",
+                    "Invalid next stage configuration");
+        }
+
+        // Step 4: Resolve the configured next-stage status.
+        StageStatus nextStageStatus;
+
+        try {
+            nextStageStatus = StageStatus.valueOf(nextStageStatusValue);
+        } catch (IllegalArgumentException ex) {
+            log.error("Invalid next stage status: {} for MIF ID: {}",
+                    nextStageStatusValue, mifId);
+            throw new ValidationException(
+                    "INVALID_NEXT_STAGE_STATUS",
+                    "Invalid next stage status configuration");
+        }
+
+        // Step 5: Prepare the next-stage journey entity.
+        MIFJourneyDto journey = MIFJourneyDto.builder()
+                .merchantMIFId(mifId)
+                .stageNum(nextStage.getStageNum())
+                .status(nextStageStatus)
+                .stageDate(System.currentTimeMillis())
+                .build();
+
+        // Step 6: Persist the next-stage journey details.
+        log.info("Updating next stage for MIF ID: {}, nextStage: {}, status: {}",
+                mifId, nextStageCode, nextStageStatus);
+
+        onboardingStageDao.saveMIFJourney(journey);
+
+        log.info("Next stage updated successfully for MIF ID: {}, nextStage: {}",
+                mifId, nextStageCode);
+    }
+}
